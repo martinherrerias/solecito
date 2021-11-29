@@ -1,0 +1,97 @@
+#ifndef ONEDIODEMODEL_H
+#define ONEDIODEMODEL_H
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <limits>
+#include <type_traits>
+#include <utility>
+#include "../Utils/xmlutils.h"
+#include "../Utils/pvcommutils.h"
+#include "../Utils/Sortbehavior.h"
+#include "../Utils/Rootfind.h"
+#include <include/igl/slice.h>
+#include <include/igl/slice_into.h>
+#include <include/igl/find.h>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <unsupported/Eigen/MatrixFunctions>
+#include <boost/math/tools/roots.hpp>
+#include <boost/math/special_functions/lambert_w.hpp>
+
+
+using namespace Eigen;
+class GetSimOptFile;
+
+typedef Eigen::Array<double, Dynamic, 1> ArrayXd;
+typedef Eigen::Array<bool, Dynamic, 1> ArrayXb;
+
+
+// TODO: set a parent class, OneDiodeModel and OneDiodeModel2 inherit from it
+class OneDiodeModel
+{
+protected:
+	GetSimOptFile* filePtr;
+	struct Params inputParams;
+ 
+	std::vector<double> tol{ 0.0 };
+	ArrayXd iSet; // current set
+	ArrayXd vSet; // voltage set
+
+    double prod; // Iph*di2Mutau
+    double commonClause1; // Io*Rsh/nVth
+    double commonClause2; // Iph*Rsh*di2mutau
+    double i0; // Iph-prod/Vbi
+
+	ArrayXb isRev; // if it is reverse-baised
+	ArrayXi indexIsRev;
+    ArrayXd iRev; // reverse-baised voltage current
+    ArrayXd iRec; // recombination voltage current
+
+    size_t odmSize{ 0 };
+
+	unsigned maxIter;
+	double   neps;
+
+	ArrayXd d1Iset; // first derivative
+	ArrayXd d2Iset; // second derivative
+	
+	GeneralRootFind* m_rf;
+
+	void setRootFind(GeneralRootFind* ptrRF) { m_rf = ptrRF; }
+	void findRoot() const { m_rf->findRoot(); }
+	void fiveParameterODM();
+	void getDerivatives(enum Dim dim);
+
+public:
+	OneDiodeModel(struct Params params_, const std::vector<double>& tol_, 
+		const unsigned long& maxIter_);
+
+	
+	ArrayXd getIset() { return iSet; }
+	ArrayXd getVset() { return vSet; }
+};
+
+class OneDiodeModelCurrent : public OneDiodeModel
+{
+private:
+	void approxIrev();
+	
+public:
+	OneDiodeModelCurrent(struct Params params_, ArrayXd vSet_, const std::vector<double>& tol_ = {0.0}, 
+		const unsigned long& maxIter_ = {(unsigned long)INITVAL});
+};
+
+class OneDiodeModelVoltage : public OneDiodeModel
+{
+private:
+	ArrayXd factor;
+	void fiveParameterODMInv(const ArrayXi& index);
+
+public:
+	OneDiodeModelVoltage(struct Params params_, ArrayXd iSet_, const std::vector<double>& tol_ = {0.0}, 
+		const unsigned long& maxIter_ = {(unsigned long)INITVAL});
+};
+
+#endif

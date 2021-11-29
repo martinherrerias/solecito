@@ -1,0 +1,118 @@
+function [Terr,Loc] = readterrain(Trck,coords,filename)
+% [TERR,LOC] = READTERRAIN(TRCK,COORDS,FILENAME)
+% Read geotiff file FILENAME , and convert to a point-cloud in Project-coordinates TERR, verifying
+% that its coordinates fit those of the Project (TRCK), and smoothing-out small differences between
+% elevation data from the TIFF file and from TRCK.centers. In order for things to work smoothly:
+%
+%   FILENAME (any *.tif file in the diretory, if not specified) is expected to be a raster of 
+%     elevation points (meters) in WGS84 EPSG 4326 (Lat,Long) coordinates. It's recommended that
+%     it provides a ~25 km margin around the project, with good (~1") resolution.
+%   COORDS must provide the means of converting mount-coordinates (TRCK.centers) to UTM (WGS84).
+%     COORDS.origin (2-vector) UTM (WGS84) coordinates for [0;0;0] in TRCK.centers.
+%     COORDS.flipped = true if the site is in the northern hemisphere (Y in TRCK.centers points to
+%     Equator, and thus must be flipped).
+%
+% Output:
+%   TERR: structure with fields {x,y,z} representing both the points in the DEM and the ground
+%     just below TRCK (see APROXGROUNDMESH), for better resolution close to the mounts.
+%     TERR.g0 contains the average lattice of the DEM, for use in GETHORIZONS.
+%   LOC: structure with fields {latitude,longitude} (degrees) with the exact coordinates of the
+%     project 'origin' ([0;0;0] in mount-coordinates).
+%
+% See also: GETHORIZONS, GUITERRAIN, APROXGROUNDMESH
+
+    if nargin < 3 || isempty(filename), filename = pickfile('*.tif'); end
+    try angtol = getSimOption('angtol'); catch, angtol = 360/256; end
+    try buffer = getSimOption('terrainbuffer'); catch, buffer = 1; end
+
+    % characteristic length of plant
+    d0 = max(rssq(Trck.centers(1:2,:),1));    % characteristic (horizontal) length of plant
+
+    x0 = coords.origin(1);
+    y0 = coords.origin(2);
+
+    % Read DEM from geotiff file, and check limits against mount-file coordinates
+    Terr = geotiffread(filename);
+    [x,y] = meshgrid(Terr.x([1,end]),Terr.y([1,end])); % get only boundaries, for now
+    [x,y,zone] = deg2utm(y,x);
+
+    x = mean(x,1); y = flipud(mean(y,2)); % approx. edge midpoints
+
+    [lat,lon] = utm2deg(x0,y0,zone);
+
+    if lat > max(Terr.y) || lat < min(Terr.y) || lon > max(Terr.x) || lon < min(Terr.x)
+        error(['The provided geotiff file does not seem to cover the area of the project,',...
+            'check the GEOTIFF file, and/or make sure that Project coordinates in the .mount ',...
+            'file are in UTM %s (WGS84)'],zone);
+    end
+    Loc.latitude = lat;
+    Loc.longitude = lon;
+
+    margins = [x0 - x(1), x(2) - x0, y0 - y(1), y(2) - y0];
+    if any( margins < d0/tan(angtol))
+       warning(['For this project size and precision settings, it is highly recommended to use ',...
+                'terrain elevation data with at least %0.1 km on each side of the Project. ',...
+                'Your current margins are: %0.1f km West, %0.1f km East, %0.1f km South, ',...
+                '%0.1f km North.'], d0/tan(angtol)/1000,margins/1000); 
+    end
+    
+    % get all x,y pixel coordinates
+    [x,y] = meshgrid(Terr.x,Terr.y);
+    [x,y] = deg2utm(y,x);
+
+    % turn UTM to internal coordinate system
+    x = x - x0;
+    y = y - y0;
+    z = double(Terr.z) - coords.origin(3);
+    if coords.flipped, x = -x; y = -y; end
+    
+    % There can be small differences between the DEM and the elevation data in the mounts file
+    % Use a local (BUFFER·d0) correction to achieve a smooth surface...
+
+    % Start with pts representing mount-positions at ground-level
+    pts = aproxgroundmesh(Trck,[],false)';
+        % pts = Trackers.centers;
+        % pts(3,:) = pts(3,:) - Trackers.centerheight;
+
+    % Search the z values for mount-positions in the DEM
+    [~,~,~,s] = rectangleproperties(Trck.geom.border);
+    near = find(rssq([x(:),y(:)],2) < s + 2*d0*buffer);
+    IntZ = scatteredInterpolant(x(near),y(near),z(near));
+    zt = IntZ(pts(1,:),pts(2,:));
+    Loc.altitude = mean(zt);
+    
+    % Correct absolute offset of DEM data
+    RMS = std(zt - pts(3,:));
+    MBE = mean(zt - pts(3,:));
+    warning('Differences between DEM and layout-points, MBE = %0.2f m, and RMS = %0.2f m',MBE,RMS);
+    z = z - mean(zt) + mean(pts(3,:));
+    zt = zt - mean(zt) + mean(pts(3,:));
+
+    % Create a buffer polygon
+    p = convhull(polygon(pts(1,:),pts(2,:)));
+    p = polyout(p,s + d0*buffer,'r');
+
+    % Create an interpolant to smoothly resolve the differences between the DEM and mounts file
+    IntZ = scatteredInterpolant([pts(1,:),p.x]',[pts(2,:),p.y]',[pts(3,:) - zt,zeros(size(p.x))]');
+
+    % Apply the interpolant-fix to any points inside the buffer polygon
+    verynear = nonzeros(inpolygon(x(near),y(near),p.x,p.y).*near);
+    z(verynear) = z(verynear) + IntZ(x(verynear),y(verynear));
+    
+    % Create a Near-Ground triangulation with points in the inner circle, including mount-file pts
+    nGnd.V = [x(near),y(near),z(near)];
+    nGnd.V = [nGnd.V;pts'];
+    nGnd.T = delaunay(nGnd.V(:,1),nGnd.V(:,2));
+    
+    % Plot final triangulation
+    plottrackerarray(Trck,'gnd',nGnd);
+    hold on; scatter3(pts(1,:),pts(2,:),pts(3,:),10,jet(size(pts,2)),'fill'); hold off;
+    
+    % Include points from mounts-file in final point-cloud
+    Terr.x = [x(:);pts(1,:)'];
+    Terr.y = [y(:);pts(2,:)'];
+    Terr.z = [z(:);pts(3,:)'];
+    
+    Terr.g0 = Terr.info.map_info.dy*pi/180*6380e3; % approx. grid size (meters)
+end
+

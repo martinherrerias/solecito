@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PrecTol>
+<!-- Ṕrecision and Tolerances -->
+  <RelTol>1e-3</RelTol> <!-- Relatvie tolerance -->
+  <minAbsTol>1e-12</minAbsTol>
+  <minRelTol>1e-6</minRelTol>
+  <NEPS>8</NEPS>
+  <MaxIter>100</MaxIter> <!-- Iterative solutions -->
+  <MaxRecur>500</MaxRecur>
+</PrecTol>

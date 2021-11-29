@@ -1,0 +1,428 @@
+#include "OneDiodeModel.h"
+#include "../Utils/Compare.h"
+#include <cstdlib>
+#include <iomanip>
+#include <random>
+#ifdef MSXML
+#include <time.h>
+#else
+#include <sys/time.h>
+#endif
+#include <vector>
+#include <chrono>
+#include <omp.h>
+#include "../testUtils.h"
+
+class OneDiodeModel;
+class OneDiodeModelCurrent;
+
+OneDiodeModel::OneDiodeModel(struct Params params_,
+	const std::vector<double>& tol_,
+	const unsigned long& maxIter_)
+	: inputParams(params_), tol(tol_), maxIter(maxIter_)
+{
+	if (maxIter == (unsigned)INITVAL)
+	{
+		filePtr = GetSimOptFile::Instance();
+		maxIter = (filePtr->getElement<unsigned>)("MaxIter");
+		neps    = (filePtr->getElement<double>)("NEPS");
+	}
+
+	filePtr->parseTolerance(tol);
+
+	prod = (inputParams.Iph*inputParams.di2Mutau);
+	commonClause1 = inputParams.Io*inputParams.Rsh/inputParams.nVth;
+	commonClause2 = inputParams.Iph*inputParams.Rsh*inputParams.di2Mutau;
+
+	// the point from which the module starts to be reverser-biased (V < -IRs)
+	i0 = inputParams.Iph-prod/inputParams.Vbi;
+}
+
+void OneDiodeModel::fiveParameterODM()
+{
+//	std::cout.precision(std::numeric_limits<double>::max_digits10);
+	ArrayXd newIph = inputParams.Iph-iRec+iRev;
+	if (inputParams.Rs == 0.0)
+		iSet = newIph - inputParams.Io*((vSet/inputParams.nVth).exp() - 1.0) 
+				- vSet/inputParams.Rsh;
+	else
+	{
+		//TODO: move kr and ki into the header files
+		double kr = inputParams.Rsh/(inputParams.Rs + inputParams.Rsh);
+		double ki = inputParams.Rs/inputParams.nVth;
+
+		ArrayXd logPar = std::log(kr*ki*inputParams.Io) 
+				+ ki*kr*(newIph + inputParams.Io + vSet/inputParams.Rs);
+
+	    // use the boost lambert function with default policy
+		ArrayXd w(odmSize);
+		ArrayXd toli(odmSize);
+#pragma omp parallel for if(odmSize > 10000)
+		for (int i = 0; i < odmSize; i++)
+		{
+			w(i) = boost::math::lambert_w0(std::exp(logPar(i)));
+		}
+
+		iSet = kr*(newIph + inputParams.Io - vSet/inputParams.Rsh) - w/ki;
+
+		// TODO: newton-Rapson iteration
+		toli = filePtr->tolFunVec(tol, iSet, neps, Dim::hori);
+		// TODO: probably Dim::hori can be replaced
+		auto fLambda = std::function<ArrayXd(ArrayXd)>([=](ArrayXd iS) -> ArrayXd 
+			{return newIph - (std::log(inputParams.Io) + 
+				(vSet + iS*inputParams.Rs)/inputParams.nVth).exp() + inputParams.Io 
+				- (vSet + iS*inputParams.Rs)/inputParams.Rsh - iS;}); // solve fLambda(x) = 0
+		// for NewtonRaphson
+	/*	auto dfLambda = std::function<ArrayXd(ArrayXd)>([=](ArrayXd iS) -> ArrayXd
+			{return -1*(inputParams.Rs/inputParams.Rsh + 
+				inputParams.Rs/inputParams.nVth*(std::log(inputParams.Io) + 
+				(vSet + iS*inputParams.Rs)/inputParams.nVth).exp()) - 1.0;}); */ 
+        
+        if ((fLambda(iSet).abs() > toli).any())
+        {
+        //	NewtonRaphson nrMethod(fLambda, filePtr,
+        //		tol, neps, dfLambda,
+        //		maxIter, iSet);
+        	BoostNewtonRaphson nrMethod(filePtr,
+        		tol, neps, inputParams, newIph,
+        		maxIter, iSet, vSet, Dim::vert);
+
+        	setRootFind(&nrMethod);
+        	findRoot();
+        }
+
+#ifndef NDEBUG
+        std::cout<<"The output of fiveParameterODM is \n"<<iSet<<"\n";
+#endif
+	}
+}
+
+/* Explicit 1st and 2nd derivatives */
+void OneDiodeModel::getDerivatives(enum Dim dim)
+{// TODO: provided for use in onediodempp
+	// for Dim::hori -> Ix
+	// TODO: ask Martin to change the naming
+	ArrayXd kc = commonClause1*
+		((vSet + inputParams.Rs*iSet)/inputParams.nVth).exp();
+	ArrayXd kd = commonClause2 / 
+		(vSet - inputParams.Vbi + inputParams.Rs*iSet).pow(2);
+	ArrayXd ke = kc + kd + 1.0;
+
+	ArrayXd clause = (inputParams.Rsh + inputParams.Rs*ke);
+	d1Iset = -1.0*ke/clause;
+
+	if(dim == Dim::vert)
+		d2Iset = (1.0 + inputParams.Rs*d1Iset).pow(2)*
+				(2.0*kd/(vSet - inputParams.Vbi + inputParams.Rs*iSet) - kc/inputParams.nVth)
+				/ clause;
+
+    int subS;
+	for (int i = 0; i < indexIsRev.matrix().rows(); i++)
+	{
+		subS = indexIsRev(i);
+		
+		double kr = 2.0*inputParams.Brev*(vSet(subS) + inputParams.Rs*iSet(subS));
+		d1Iset(subS) = (d1Iset(subS) + kr)/(1.0 - inputParams.Rs*kr);
+
+		if (dim == Dim::vert)
+			d2Iset(subS) = (d2Iset(subS) + 2.0*inputParams.Brev
+						*POW2(1.0 - inputParams.Rs*d1Iset(subS)))/(1.0 - inputParams.Rs*kr);
+	}
+}
+
+OneDiodeModelCurrent::OneDiodeModelCurrent(struct Params params_,
+	ArrayXd vSet_,
+	const std::vector<double>& tol_,
+	const unsigned long& maxIter_)
+	:  OneDiodeModel(params_, tol_, maxIter_)
+{
+	vSet = vSet_;
+	odmSize = vSet.matrix().rows();
+	iSet.resize(odmSize);
+
+	isRev = vSet < -1.0*(inputParams.Rs*i0);
+	igl::find<ArrayXb, ArrayXi>(isRev, indexIsRev);
+
+	// approximate the recombination loss current
+	iRec = prod/(inputParams.Vbi - vSet);
+
+	iRev = ArrayXd::Zero(odmSize);
+	if (inputParams.Brev > 0.0 && isRev.any())
+		approxIrev();
+
+//	double test_start, test_end;
+//	TIMESTAMP(test_start);
+	fiveParameterODM();
+
+//    TIMESTAMP(test_end);
+//    std::cout<<"test time is "<<test_end - test_start<<"\n";
+	ArrayXb triky; //TODO: change the naming of triky
+	triky = (inputParams.di2Mutau > 0.0) * (vSet > inputParams.Vbi);
+    ArrayXi indexTricky;
+    igl::find<ArrayXb, ArrayXi>(triky, indexTricky);
+   
+    
+    // Extract the common variables
+    double logIo = std::log(inputParams.Io);
+
+    //TODO: move tolBS to the headfile
+    std::vector<double> tolBS(0.0);
+
+    filePtr->setElement<double>("minRelTol", EPSILON1);
+	filePtr->setElement<double>("minAbsTol", EPSILON0);
+
+	filePtr->parseTolerance(tolBS);
+		
+//  double bs_start, bs_end;
+//  TIMESTAMP(bs_start);
+	int trickySize = indexTricky.matrix().rows();
+
+#pragma omp parallel for if (trickySize > 1000)
+    for (int i = 0; i < trickySize; i++)
+    {
+		double root;
+		int    subS = indexTricky(i);
+		double vPoint = vSet(subS);
+
+		//TODO: vertorize the following function pointer
+		auto errLambda = std::function<double(double)>([=](double iS) -> double
+		{return inputParams.Iph - std::exp(logIo + (vPoint + iS*inputParams.Rs)/inputParams.nVth)
+			+ inputParams.Io - (vPoint + iS*inputParams.Rs)/inputParams.Rsh
+			- prod/pvMAX<double>(EPSILON0, inputParams.Vbi - vPoint - inputParams.Rs*iS) - iS;});
+		BiSection bsMethod(std::move(errLambda), filePtr, tolBS, neps, -vPoint/inputParams.Rs, i0, root);
+			
+		setRootFind(&bsMethod);
+		findRoot();
+#ifndef NDEBUG
+		std::cout<<"the root of BiSection is "<<root<<"\n";
+#endif
+		iSet(subS) = root;
+#ifndef NDEBUG
+		std::cout<<"the iSet is \n"<<iSet <<"\n";
+#endif
+	}
+//	TIMESTAMP(bs_end);
+//	std::cout<<"bs time is "<<bs_end - bs_start<<"\n";
+
+//  double iter_start, iter_end;
+//  TIMESTAMP(iter_start);
+	if ((iRev != 0.0).any() || (iRec != 0.0).any())
+	{
+		ArrayXd preIset;
+		int i;
+		for (i = 0; i < maxIter + 1; i++)
+		{
+			preIset = iSet;
+			iRec = prod/((inputParams.Vbi - vSet - inputParams.Rs*iSet).max(EPSILON0));
+			iRev = isRev.select(inputParams.Brev*((vSet + inputParams.Rs*iSet).pow(2)), 0.0);
+			fiveParameterODM();
+
+			if (((iSet - preIset).abs() <= filePtr->tolFunVec(tol, iSet, neps, Dim::hori)).all())
+				break;
+		}
+#ifndef NDEBUG
+		std::cout<<"the i is "<<i<<"\n";
+#endif
+		if (i > maxIter)
+			CATCHRTERROR(", ODM could not converge to a solution");
+	}
+
+//	TIMESTAMP(iter_end);
+//	std::cout<<"iter time is "<<iter_end - iter_start<<"\n";
+//	getDerivatives(Dim::vert);
+#ifndef NDEBUG
+	std::cout<<"The output iSet is \n"<< iSet <<"\n";
+#endif
+	//TODO: ask Martin about the reshape??
+}
+
+
+void OneDiodeModelCurrent::approxIrev()
+{ // TODO: need to be tested
+	if (inputParams.Rs == 0.0)
+		iRev = isRev.select(inputParams.Brev*(vSet.pow(2)), 0.0);
+	else
+	{
+		double m0 = commonClause1 +
+		commonClause2/(POW2(inputParams.Vbi)) + 1.0;
+		m0 = -1.0*(m0 / (inputParams.Rsh + inputParams.Rs*m0));
+		iSet = i0 + m0*(vSet + inputParams.Rs*i0);
+
+		ArrayXd term = 1.0 - 4.0*inputParams.Brev*inputParams.Rs*(vSet + inputParams.Rs*iSet);
+
+		iRev = 1.0/(2.0*inputParams.Brev*POW2(inputParams.Rs))*(1.0 - term.sqrt()) - vSet/inputParams.Rs;
+		iRev = isRev.select(iRev - iSet, 0.0);
+	}
+}
+
+
+OneDiodeModelVoltage::OneDiodeModelVoltage(struct Params params_,
+	ArrayXd iSet_,
+	const std::vector<double>& tol_,
+	const unsigned long& maxIter_)
+	:  OneDiodeModel(params_, tol_, maxIter_)
+{
+	iSet = iSet_;
+	odmSize = iSet.matrix().rows();
+
+	isRev = (iSet >= i0);
+	ArrayXb notIsRev = (iSet < i0);
+
+	vSet = ArrayXd::Zero(odmSize);
+	factor = ArrayXd::Ones(odmSize);
+
+	igl::find<ArrayXb, ArrayXi>(isRev, indexIsRev);
+	ArrayXi indexNotIsRev;
+    igl::find<ArrayXb, ArrayXi>(notIsRev, indexNotIsRev);
+
+	// Get approx. reverse-bias voltages
+	if (inputParams.Brev > 0.0 && isRev.any())
+	{
+		// TODO: remove the repeated code
+		double m0 = commonClause1 +
+		commonClause2/(POW2(inputParams.Vbi)) + 1.0;
+		m0 = -1.0*(m0 / (inputParams.Rsh + inputParams.Rs*m0));
+
+		// Solution to I=i0+m0(V+Rsi)+Brev(V+Rsi)^2
+		for (int i = 0; i < indexIsRev.matrix().rows(); i++)
+		{
+			int subIsRev = indexIsRev(i);
+			
+			vSet(subIsRev) = -inputParams.Rs*iSet(subIsRev) - 
+				m0/(2.0*inputParams.Brev)*(1.0-std::sqrt(1.0 + 4.0*inputParams.Brev/m0*(iSet(subIsRev)-i0)*(1.0/m0+inputParams.Rs)));
+		}
+	}
+
+//  double bs_start, bs_end;
+//  TIMESTAMP(bs_start);
+    if (inputParams.di2Mutau > 0.0 && notIsRev.any())
+    {
+    	// Extract the common variables
+    	double logIo = std::log(inputParams.Io);
+    	int notIsRevSize = indexNotIsRev.matrix().rows();
+
+#pragma omp parallel for if (notIsRevSize > 1000)
+    	for (int i = 0; i < notIsRevSize; i++)
+    	{
+			double root;
+			int    subS = indexNotIsRev(i);
+			double iPoint = iSet(subS);
+
+			//TODO: vertorize the following function pointer
+			auto errLambda = std::function<double(double)>([=](double vS) -> double
+			{return inputParams.Iph - std::exp(logIo + (vS + iPoint*inputParams.Rs)/inputParams.nVth)
+				+ inputParams.Io - (vS + iPoint*inputParams.Rs)/inputParams.Rsh
+				- prod/pvMAX<double>(EPSILON0, inputParams.Vbi - vS - inputParams.Rs*iPoint) - iPoint;});
+			BiSection bsMethod(std::move(errLambda), filePtr, tol, neps, -i0*inputParams.Rs, inputParams.Vbi-inputParams.Rs*iPoint, root);
+				
+			setRootFind(&bsMethod);
+			findRoot();
+	#ifndef NDEBUG
+			std::cout<<"the root of BiSection is "<<root<<"\n";
+	#endif
+			vSet(subS) = root;
+			factor(subS) = 0.2;
+	#ifndef NDEBUG
+			std::cout<<"the vSet is \n"<<vSet <<"\n";
+	#endif
+		}
+    }
+    else
+    {
+    	fiveParameterODMInv(indexNotIsRev);
+    }
+
+//	TIMESTAMP(bs_end);
+//	std::cout<<"bs time is "<<bs_end - bs_start<<"\n";
+
+//  double iter_start, iter_end;
+//  TIMESTAMP(iter_start);
+
+	if (isRev.any() || (inputParams.di2Mutau > 0.0))
+	{
+		ArrayXd preVset;
+		ArrayXd preIset;
+		ArrayXd err;
+		int i;
+        preIset = iSet;
+		for (i = 0; i < maxIter + 1; i++)
+		{
+			preVset = vSet;
+			
+			iRec = prod/(inputParams.Vbi - vSet - inputParams.Rs*preIset);
+			iRev = isRev.select(inputParams.Brev*((vSet + inputParams.Rs*preIset).pow(2)), 0.0);
+			fiveParameterODM();
+			err = iSet - preIset;
+			getDerivatives(Dim::hori); // based on the updated iSet
+			vSet = vSet - factor*err/d1Iset;
+			// TODO: if the tol is the same as the before after filePtr->setElement
+
+			if ((((err.abs() <= filePtr->tolFunVec(tol, iSet, neps, Dim::hori)).cast<int>() + 
+				((vSet-preVset).abs() <= filePtr->tolFunVec(tol, vSet, neps, Dim::vert)).cast<int>()) > 0).all())
+				break;
+		}
+		iSet = preIset; //restore the value of iSet
+#ifndef NDEBUG
+		std::cout<<"the i is "<<i<<"\n";
+#endif
+		if (i > maxIter)
+			CATCHRTERROR(", ODM2 could not converge to a solution");
+	}
+
+//	TIMESTAMP(iter_end);
+//	std::cout<<"iter time is "<<iter_end - iter_start<<"\n";
+//	getDerivatives();
+#ifndef NDEBUG
+	std::cout<<"The output vSet is \n"<< vSet <<"\n";
+#endif
+
+}
+
+// Scalar processing using boost NewtonRaphson
+void OneDiodeModelVoltage::fiveParameterODMInv(const ArrayXi& indexS)
+{
+	int subSize = indexS.matrix().rows();
+	ArrayXd tmpVSet = ArrayXd::Zero(subSize);
+	ArrayXd iSubSet;
+	igl::slice<ArrayXd, ArrayXd>(iSet, indexS, iSubSet);
+	ArrayXd Idf = inputParams.Iph - iSubSet;
+	
+#pragma omp parallel for if (subSize > 1000)
+	for (int i = 0; i < subSize; i++)
+	{
+		if (Idf(i) <= 0)
+			tmpVSet(i) = inputParams.Iph - Idf(i)*inputParams.Rs;
+		else
+		{
+			double logPar = std::log(commonClause1) + (commonClause1*Idf(i)/inputParams.Io);
+			double w = boost::math::lambert_w0(std::exp(logPar));
+			tmpVSet(i) = inputParams.Rsh*Idf(i) - inputParams.Rs*iSubSet(i) - inputParams.nVth*w;
+		}
+	}
+
+	ArrayXd tolv(subSize);
+	tolv = filePtr->tolFunVec(tol, tmpVSet, neps, Dim::vert);
+	// TODO: probably Dim::hori can be replaced
+	auto fLambda = std::function<ArrayXd(ArrayXd)>([=](ArrayXd vS) -> ArrayXd 
+		{return inputParams.Rsh*(inputParams.Iph - (std::log(inputParams.Io) + 
+			(vS + iSubSet*inputParams.Rs)/inputParams.nVth).exp() + inputParams.Io)
+			- iSubSet*(inputParams.Rs + inputParams.Rsh) - vS;});
+	/* Reserved for NewtonRaphson */
+	//auto dfLambda = std::function<ArrayXd(ArrayXd)>([=](ArrayXd vS) -> ArrayXd
+	//	{return -1*(inputParams.Rsh/inputParams.nVth*(std::log(inputParams.Io) + 
+	//		(vS + iSubSet*inputParams.Rs)/inputParams.nVth)).exp() - 1;});
+        
+    if ((fLambda(tmpVSet).abs() > tolv).any())
+    {
+    //	NewtonRaphson nrMethod(fLambda, filePtr,
+    //		tol, neps, dfLambda,
+    //		maxIter, tmpVSet);
+
+    	BoostNewtonRaphson nrMethod(filePtr,
+    		tol, neps, inputParams,
+    		maxIter, tmpVSet, iSubSet, Dim::hori);
+    	setRootFind(&nrMethod);
+    	findRoot();
+    }
+    igl::slice_into(tmpVSet,indexS,vSet);
+}

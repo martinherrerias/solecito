@@ -1,0 +1,45 @@
+library CustomODM
+type ODM
+entries 1
+entry Canadian_CS6X_310P_FG_PAN
+01:pv.mod.odm.material=Si-poly
+02:pv.mod.odm.nJunct=1
+03:pv.mod.odm.isCPV=0
+04:pv.mod.odm.Nbpd=3
+05:pv.mod.odm.area=1.952
+06:pv.mod.odm.width=992.0
+07:pv.mod.odm.length=1968.0
+08:pv.mod.odm.Ns=72
+09:pv.mod.odm.Np=1
+10:pv.mod.odm.G0=1000.0
+11:pv.mod.odm.Tc0=25.0
+12:pv.mod.odm.AM0=1.5
+13:pv.mod.odm.Isc0=9.08
+14:pv.mod.odm.Voc0=44.9
+15:pv.mod.odm.Imp0=8.52
+16:pv.mod.odm.Vmp0=36.4
+17:pv.mod.odm.Pmp0=310.128
+18:pv.mod.odm.eta0=0.15888
+19:pv.mod.odm.muIsc=6.5E-4
+20:pv.mod.odm.muVoc=-3.43E-3
+21:pv.mod.odm.muPmp=-4.12E-3
+22:pv.mod.odm.nDiode=1.066
+23:pv.mod.odm.nVth0=1.97196
+24:pv.mod.odm.Iph0=9.08
+25:pv.mod.odm.Io0=1.159E-9
+26:pv.mod.odm.Rs=0.315
+27:pv.mod.odm.Rsh0=400.0
+28:pv.mod.odm.Eg0=1.12
+29:pv.mod.odm.muEg=0.0E+0
+30:pv.mod.odm.muNdiode=-4.183E-4
+31:pv.mod.odm.Rshbase=4000.0
+32:pv.mod.odm.Rshexp=5.5
+33:pv.mod.odm.Vbi=64.8
+34:pv.mod.odm.di2mutau=0.0
+35:pv.mod.odm.Brev=1.09E+1
+36:pv.mod.odm.NOCT=44.0
+37:pv.mod.odm.TempModel=Uval
+38:pv.mod.odm.Uconst=29.0
+39:pv.mod.odm.Uwind=0.0
+40:pv.mod.odm.absort=0.9
+!

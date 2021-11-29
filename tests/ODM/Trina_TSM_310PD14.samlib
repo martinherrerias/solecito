@@ -1,0 +1,45 @@
+library CustomODM
+type ODM
+entries 1
+entry Trina_TSM_310PD14.PAN
+01:pv.mod.odm.material=Si-poly
+02:pv.mod.odm.nJunct=1
+03:pv.mod.odm.isCPV=0
+04:pv.mod.odm.Nbpd=3
+05:pv.mod.odm.area=1.94035
+06:pv.mod.odm.width=992.0
+07:pv.mod.odm.length=1956.0
+08:pv.mod.odm.Ns=72
+09:pv.mod.odm.Np=1
+10:pv.mod.odm.G0=1000.0
+11:pv.mod.odm.Tc0=25.0
+12:pv.mod.odm.AM0=1.5
+13:pv.mod.odm.Isc0=8.85
+14:pv.mod.odm.Voc0=45.5
+15:pv.mod.odm.Imp0=8.38
+16:pv.mod.odm.Vmp0=37.0
+17:pv.mod.odm.Pmp0=310.06
+18:pv.mod.odm.eta0=0.1598
+19:pv.mod.odm.muIsc=5.0E-4
+20:pv.mod.odm.muVoc=-3.01E-3
+21:pv.mod.odm.muPmp=-4.1E-3
+22:pv.mod.odm.nDiode=0.915
+23:pv.mod.odm.nVth0=1.69263
+24:pv.mod.odm.Iph0=8.85
+25:pv.mod.odm.Io0=1.857E-11
+26:pv.mod.odm.Rs=0.395
+27:pv.mod.odm.Rsh0=600.0
+28:pv.mod.odm.Eg0=1.1245
+29:pv.mod.odm.muEg=-2.419E-4
+30:pv.mod.odm.muNdiode=3.7E-5
+31:pv.mod.odm.Rshbase=1000.0
+32:pv.mod.odm.Rshexp=18.0
+33:pv.mod.odm.Vbi=64.8
+34:pv.mod.odm.di2mutau=0.0
+35:pv.mod.odm.Brev=9.84E+0
+36:pv.mod.odm.NOCT=44.0
+37:pv.mod.odm.TempModel=SAPM
+38:pv.mod.odm.a_wind=-3.56
+39:pv.mod.odm.b_wind=-0.08
+40:pv.mod.odm.delT=3.0
+!

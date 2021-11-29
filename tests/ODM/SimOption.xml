@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PrecTol>
+  <RelTol>0.0001</RelTol>
+  <minAbsTol>1e-12</minAbsTol>
+  <minRelTol>1e-06</minRelTol>
+  <NEPS>8</NEPS>
+  <MaxIter>200</MaxIter>
+  <MaxRecur>500</MaxRecur>
+</PrecTol>

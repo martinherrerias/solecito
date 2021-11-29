@@ -1,0 +1,22 @@
+Introduction:
+
+1. Include build files, C++ mex files and profile files.
+	a) build files: commonBuildScript.m, addParallelBuildScript.m, addSeriesBuildScript.m, ODMpwlapproxBuildScript.m
+        	* commonBuildScript.m creates the common object files that are required by all other build scripts, so it should be always run first.
+	b) C/C++ mex files: mexaddparallel.cpp, mexaddseries.cpp, mexODMpwlapprox.cpp, mexVecODMpwlapproxAddseries.cpp.
+		* mexaddparallel.cpp = addparallel in Matlab 
+		* mexaddseries.cpp = addseries
+		* mexODMpwlapprox.cpp = onediodepwlapprox
+		* mexVecODMpwlapproxAddseries.cpp = onediodepwlapprox+addseries
+	c) profiles files: mexaddseriesparallel.m, mexODM_seriesparallel.m, ODM_seriesparallel.m
+		* 'mexODM_seriesparallel': profile file for mexVecODMpwlapproxAddseries
+	d) Note: in Provisonal, XXX_obj.* are examples showing how to handle with Matlab object in mex functions. 'profile_mex.m': simple profile file for addparallel or addseries.
+2. build files : compile the c++ source code (located in the pvProj dir) using mex and create in the end the mexXXX.mexa64.
+3. C++ mex files : connect matlab and c++. Accept the input data from matlab and then deal with them in c++ way.
+    a) Probably wirte different mexXXX.cpp files for different purposes (behaviors). Meantime add the corresponding build and profile files.
+4. clean.sh : delete all object files.
+5. add '-g' in the build files to enable the assert and debug statement in pvProj.
+
+Note that:
+
+1. Here all dirs are represented as the relative dirs. Therefore we need to take close care of our current dir.

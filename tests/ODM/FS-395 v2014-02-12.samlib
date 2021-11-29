@@ -1,0 +1,43 @@
+library CustomODM
+type ODM
+entries 1
+entry FS-395 CdTe Q213.PAN
+01:pv.mod.odm.material=CdTe
+02:pv.mod.odm.nJunct=1
+03:pv.mod.odm.isCPV=0
+04:pv.mod.odm.Nbpd=4
+05:pv.mod.odm.area=0.72
+06:pv.mod.odm.Ns=77
+07:pv.mod.odm.Np=2
+08:pv.mod.odm.G0=1000.0
+09:pv.mod.odm.Tc0=25.0
+10:pv.mod.odm.AM0=1.5
+11:pv.mod.odm.Isc0=2.17
+12:pv.mod.odm.Voc0=60.5
+13:pv.mod.odm.Imp0=2.0
+14:pv.mod.odm.Vmp0=47.5
+15:pv.mod.odm.Pmp0=95.0
+16:pv.mod.odm.eta0=0.13194
+17:pv.mod.odm.muIsc=4.147E-4
+18:pv.mod.odm.muVoc=-1.603E-3
+19:pv.mod.odm.muPmp=-2.5E-3
+20:pv.mod.odm.nDiode=1.60703
+21:pv.mod.odm.nVth0=3.17924
+22:pv.mod.odm.Iph0=2.18299
+23:pv.mod.odm.Io0=1.131E-8
+24:pv.mod.odm.Rs=2.04
+25:pv.mod.odm.Rsh0=3650.0
+26:pv.mod.odm.Eg0=1.5
+27:pv.mod.odm.muEg=0.0E+0
+28:pv.mod.odm.muNdiode=1.9E-3
+29:pv.mod.odm.Rshbase=15300.0
+30:pv.mod.odm.Rshexp=3.0
+31:pv.mod.odm.Vbi=69.3
+32:pv.mod.odm.di2mutau=0.35
+33:pv.mod.odm.Brev=3.92E+0
+34:pv.mod.odm.NOCT=45.0
+35:pv.mod.odm.TempModel=Uval
+36:pv.mod.odm.Uconst=29.0
+37:pv.mod.odm.Uwind=0.0
+38:pv.mod.odm.absort=0.9
+!

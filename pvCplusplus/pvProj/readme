@@ -1,0 +1,34 @@
+1. Include all source code (.cpp and .h)
+    a) ElectricalCalculation
+      * source files (MonoDescPWL.cpp and MonoDescPWL.h)
+      * Test: test if the logic is right
+      * Benchmark: evaluate the basic time performance
+    b) Module Definition
+      * same as the above
+    c) Other potential Modules....
+    d) Utils
+      * serve for all modules
+    e) Resources
+      * store the meta data, i.e, tol, neps...
+    f) test.h and testUtils.h
+      * Define some assertions and Macros that are called by the test and Benchmark files
+2. using cmake to compile
+    a) enter "cmake -D CMAKE_CXX_BOOST_LIB=the_path_of_BOOST_library ."
+      * by default the platform is your local laptop and the compiler is GNU 
+      * via "cmake -D CMAKE_CXX_PLATFORM=_YOUR_PLATFOMR -D CMAKE_CXX_COMPILER_ID=_YOUR_COMPILER ." to customize your own platform and compiler type
+    b) enter "make"
+    c) enter into the module folder one by one
+      * static library is created in lib
+      * further enter into test and benchmark as we want
+      * all the executables are inside the "exec_*" folder
+3. clear the work directory (under pvProj)
+    a) make clean
+    b) then bash distclean.sh
+
+Note:
+1. by default NDEBUG (as a flag -NDEBUG), if want to get debug infos as well as enable assertion, then remove the flag when compile 
+1. undefine MSXML: work in linux, by default
+   define MSXML: work in the visual studio in windows
+
+2. undefine NMEX: work in mex
+   define NMEX: not work in mex
