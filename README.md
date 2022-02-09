@@ -19,6 +19,7 @@ Zhou, H., Niethammer, C., Herrerias A., M., 2021. Usage Experiences of Performan
 BASEDIR = '~/PV4K-matlab';  % your cloned repository
 cd(BASEDIR);
 addpath(genpath('.'));
+rmpath(genpath('./.git'));
 rmpath(genpath('./tests/ODM'));
 
 rmpath(genpath('./pvCplusplus'));
@@ -80,8 +81,10 @@ copyfile('./Remote/resources/mcclear_healthcheck.m','~/Documents/CAMS/McClear');
 
 ## Acknowledgements
 
+Since 2019, the code has been reworked in the framework of the HyForPV project, funded by the Federal Ministry of Economic Affairs and Energy (Germany) on the basis of a decision by the German
+Bundestag.
+
 This project was comissioned and supported privately for years by Hugo Capdevila. I trust he would be happy to see it bear fruit, even if not in the way he envisioned.
 
 Thanks to the financial support of the Mexican National Council of Science and Technology (CONACYT) and the German Academic Exchange Service (DAAD), in 2011-2013.
-Since 2019, the code has been reworked in the framework of the HyForPV project, funded by the Federal Ministry of Economic Affairs and Energy (Germany) on the basis of a decision by the German
-Bundestag.
+

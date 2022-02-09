@@ -157,7 +157,7 @@ function solversummary(varargin)
     % POA = evalin('base','POA');
     ArrDef = evalin('base','ArrayDef');
     Trck = evalin('base','Trackers');
-    MeteoData = evalin('base','MeteoData');
+    MD = evalin('base','MD');
     celltemp = evalin('base','celltemp');
     
     Nu = numel(Trck.analysedtrackers);
@@ -171,9 +171,9 @@ function solversummary(varargin)
     Pmp0 = Mod.Imp0*Mod.Vmp0;
     
     Ge = EB.Ge;
-    Tc = celltemp(Ge,MeteoData.Ta,MeteoData.vw);
+    Tc = celltemp(Ge,MD.Ta,MD.vw);
     %Ge = (1-POA.ShF).*POA.Bpoa0 + POA.Dpoa;
-    % [~,ta,vw] = compatiblesize(Ge,MeteoData.Ta,MeteoData.vw);
+    % [~,ta,vw] = compatiblesize(Ge,MD.Ta,MD.vw);
     % Tc = celltemp(Ge,ta,vw);
     % clear ta vw
     % Ge = Ge(:,allmodules);

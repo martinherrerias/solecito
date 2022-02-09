@@ -43,8 +43,8 @@ function GUIlayout(~,~)
 
     % Plot
     setflag('layout',-3,[flagmsg,{'Plotting Layout...'}]);
-    fh = plottrackerarray(Trackers);
-    if getSimOption('exportplots'), exportfigure('layout',fh); end
+    ax = plottrackerarray(Trackers);
+    if getSimOption('exportplots'), exportfigure('layout',ax.Parent); end
 
     assignin('base','Trackers',Trackers);
     assignin('base','Location',Loc);

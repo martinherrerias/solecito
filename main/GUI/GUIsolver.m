@@ -19,7 +19,7 @@ function GUIsolver(~,~)
     Trck = evalin('base','Trackers');
 
     celltemp = evalin('base','celltemp');
-    MeteoData = evalin('base','MeteoData');
+    MD = evalin('base','MD');
     
     [ArrDef,Trck] = connectedonly(ArrDef,Trck);
     
@@ -61,7 +61,7 @@ function GUIsolver(~,~)
 
     if GUI.irrtrans.flag > 0
         if ~skipsolver
-            [POA.Tush,POA.Tsh] = getcelltemperatures(POA,MeteoData,celltemp);
+            [POA.Tush,POA.Tsh] = getcelltemperatures(POA,MD,celltemp);
             
             fprintf('\tRunning electrical solver...\n');
             setflag('solver',-3,[flagmsg(:),{'Running electrical solver...'}]);
@@ -79,8 +79,8 @@ function GUIsolver(~,~)
         clear POA
     else 
         if skipsolver
-            POA = poairradiance(MeteoData,SunPos,Trck,fHor,ShRes);
-            [~,EB] = effectiveirradiance(POA,MeteoData,Trck,ModIVint.source.material);
+            POA = poairradiance(MD,SunPos,Trck,fHor,ShRes);
+            [~,EB] = effectiveirradiance(POA,MD,Trck,ModIVint.source.material);
             clear POA
         else
             fprintf('\tRunning combined transposition + solver...\n');
@@ -90,14 +90,14 @@ function GUIsolver(~,~)
             if parallel
             % Run POA irradiance + DC solver on parallel batches
                 [SolRes,cleaner] = runparallel(@PVmain,...
-                    {MeteoData,SunPos,ShRes,Trck,fHor,ArrDef,ModIVint,celltemp,Diode,Inverter},...
+                    {MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIVint,celltemp,Diode,Inverter},...
                     1:3,[],'N',ShRes.Nt,'-simoptions','-backup');
 
                 % PROVISIONAL: EB is just the result of EFFECTIVEIRRADIANCE, packed into SolRes
                 % until runparallel takes nargout > 1     
                 EB = SolRes.EB; SolRes = rmfield(SolRes,'EB');       
             else
-                [SolRes,EB] = PVmain(MeteoData,SunPos,ShRes,Trck,fHor,ArrDef,ModIVint,...
+                [SolRes,EB] = PVmain(MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIVint,...
                     celltemp,Diode,Inverter);
             end
         end
@@ -109,7 +109,7 @@ function GUIsolver(~,~)
     fprintf('\tSolver finished! (%s elapsed)\n',timestr(SolRes.simtimer.globaltime));
 
     % Apply DC-AC conversion losses
-    [SolRes,L] = modelinverter(SolRes,Inverter,MeteoData);
+    [SolRes,L] = modelinverter(SolRes,Inverter,MD);
     EB = completestruct(EB,L);
     
     if getSimOption('resultsxls'), struct2csv(EB,ShRes.Nt,'SimResults.xls'); end
@@ -154,7 +154,7 @@ function checkshadingresults(ShRes,ArrDef,Trck)
 end
 
 function varargout = PVmain(varargin)
-% PVMAIN(MeteoData,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter,[OPT,'name',val])
+% PVMAIN(MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter,[OPT,'name',val])
 % PVMAIN('backup',S) - attempt to resume interrupted calculation from backup structure S,
 %   where S = load(FILE), after a previous call with ..,'backup',FILE.
 
@@ -185,21 +185,21 @@ function varargout = PVmain(varargin)
         end
 
         SolRes = pvArraySolver('backup',B.backup);
-        [~,EB] = effectiveirradiance(B.POA,B.MeteoData,B.Trck,B.ModIV.source.material);
+        [~,EB] = effectiveirradiance(B.POA,B.MD,B.Trck,B.ModIV.source.material);
         clear B
         
     case {10,11}
-    % MeteoData,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,Diode,Inverter,[OPT])
+    % MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,Diode,Inverter,[OPT])
         if numel(varargin) == 11
             options = completestruct(varargin{end},options); 
         end
-        [MeteoData,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter] = deal(varargin{1:10});
+        [MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter] = deal(varargin{1:10});
         
         fprintf('Evaluating Shading Results...\n');
-        [POA,ShRes] = poairradiance(MeteoData,SunPos,Trck,fHor,ShRes);
-        [POA,EB] = effectiveirradiance(POA,MeteoData,Trck,ModIV.source.material);
+        [POA,ShRes] = poairradiance(MD,SunPos,Trck,fHor,ShRes);
+        [POA,EB] = effectiveirradiance(POA,MD,Trck,ModIV.source.material);
 
-        [POA.Tush,POA.Tsh] = getcelltemperatures(POA,MeteoData,celltemp);
+        [POA.Tush,POA.Tsh] = getcelltemperatures(POA,MD,celltemp);
 
         fprintf('\tRunning electrical solver...\n');
         SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,options);
@@ -214,13 +214,13 @@ function varargout = PVmain(varargin)
     end
 end
 
-function [SolRes,EB] = modelinverter(SolRes,Inverter,MeteoData)
+function [SolRes,EB] = modelinverter(SolRes,Inverter,MD)
     
     SolRes.Pac = zeros(size(SolRes.Vdc));
     Pdc = sum(SolRes.Pdc,3,'omitnan');
     Pdc(Pdc<0) = 0;
     SolRes.Vdc(SolRes.Vdc<0) = 0;
-    [SolRes.Pac(:),SolRes.Loss] = ONDeval(Inverter,Pdc,SolRes.Vdc,MeteoData.Ta);
+    [SolRes.Pac(:),SolRes.Loss] = ONDeval(Inverter,Pdc,SolRes.Vdc,MD.Ta);
 
     EB.E0 = sum(SolRes.Push,2:3,'omitnan');
     EB.Elsh = sum(SolRes.Plsh,2,'omitnan');
@@ -242,12 +242,12 @@ function [SolRes,EB] = modelinverter(SolRes,Inverter,MeteoData)
     %EB.inv = sum(EB.Edc-EB.Eac)/sum(EB.Edc);
 end
 
-function [Tush,Tsh] = getcelltemperatures(POA,MeteoData,celltemp)
+function [Tush,Tsh] = getcelltemperatures(POA,MD,celltemp)
 % Get cell temperatures for shaded and not shaded elements (before applying UF!)
 
     fprintf('\tCalculating cell-temperatures...\n');
     Gush = POA.Dpoa + POA.Bpoa;
-    [Gush,ta,vw] = compatiblesize(Gush,MeteoData.Ta,MeteoData.vw);
+    [Gush,ta,vw] = compatiblesize(Gush,MD.Ta,MD.vw);
     Tush = celltemp(Gush,ta,vw);  
     Tsh = celltemp(POA.Dpoa,ta,vw);
 end

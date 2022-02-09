@@ -137,7 +137,7 @@ function varargout = splitscript(prjname,varargin)
         steps = setdiff(steps,{'irrtrans'},'stable');
     end
     
-    setSimOption('version','splitscript');
+    setSimOption('version','batch');
     setSimOption('plotting',false);
     
     % Override SimOptions if provided as 'simoptions',{'opt1',val,'opt2',val2,...}

@@ -45,7 +45,7 @@ function splitGUI(prjname)
     global SimOptions;
 
     SimOptions = DefaultOptions();      % provisional (*)
-    SimOptions.version = 'UI';
+    SimOptions.version = 'GUI';
     %clc
     
     % Record everything on log file
@@ -286,7 +286,7 @@ function minprj(~,~)
     
     % FUTURE: the list should be derived from a GUI.varin/varout field similar to GUI.req
     USEDVARS = {'SimOptions','GUI','OptionFlags','Location',...
-                'Time','SunPos','MeteoData','HorizonProfile',...
+                'Time','SunPos','MD','HorizonProfile',...
                 'Trackers','ArrayDef','ArrIdx',...
                 'ModIVint','Diode','Inverter','celltemp'};
     
@@ -364,10 +364,10 @@ function openprj(~,~,filename)
     evalin('base',sprintf('load(''%s'',''-mat'',''%s'');',filename,strjoin(vars,''',''')));
     
     % Change from PVL_MAKETIMESTRUCT to DATETIME (2020.10.20)
-    if any(strcmp(allvars,'Time')) && any(strcmp(allvars,'MeteoData')) && ...
+    if any(strcmp(allvars,'Time')) && any(strcmp(allvars,'MD')) && ...
             ~evalin('base','isdatetime(Time)')
         T = evalin('base','Time');
-        MD = evalin('base','MeteoData');
+        MD = evalin('base','MD');
         if isfield(T,'dt')
             dt = T.dt;
             T = parsetime(T,'step',dt);
@@ -376,7 +376,7 @@ function openprj(~,~,filename)
         end
         MD.timestep = dt;
         assignin('base','Time',T);
-        assignin('base','MeteoData',MD);
+        assignin('base','MD',MD);
     end
     
     % Load shading-results last (allows update of deprecated versions)

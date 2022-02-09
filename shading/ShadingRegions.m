@@ -449,10 +449,10 @@ methods
         obj.sky = cellfun(@(p) polyrotate(p,R),obj.sky,'unif',0);
         obj.albedo = cellfun(@(p) polyrotate(p,R),obj.albedo,'unif',0);
         if obj.hasimplicit.sky
-            obj.implicit.sky = cellfun(@(p) polyrotate(p,R),obj.implicit.sky,'unif',0);
+            obj.implicit.sky = polyrotate(obj.implicit.sky,R);
         end
         if obj.hasimplicit.albedo
-            obj.implicit.albedo = cellfun(@(p) polyrotate(p,R),obj.implicit.albedo,'unif',0);
+            obj.implicit.albedo = polyrotate(obj.implicit.albedo,R);
         end
     end
     
@@ -572,7 +572,7 @@ methods
         cosIA = permute(R(:,3,:),[3 1 2])*s; % [Nr Ns]
         visible = acosd(permute(cosIA,[3 2 1]))-obj.cs(:) < acosd(PolyPrj.cX); % [Nc Ns Nr]
         
-        if ~any(visible) && nargout < 2
+        if ~any(visible,'all') && nargout < 2
            prj = repmat({polygon.empty},Nc,Ns,Nr); return;
         end
         
@@ -582,7 +582,12 @@ methods
         end
         
         % Minimum z of visible (i.e. projected) point, for each rotation R
-        minprjz = cos(acos(R(3,3,:)) + acos(PolyPrj.cX)); % [1 1 Nr]
+        b = acos(R(3,3,:)) + acos(PolyPrj.cX);
+        if b > pi
+            minprjz = -1;
+        else
+            minprjz = cos(b); % [1 1 Nr]
+        end
         
         % clipped(i,j,k) - CS disc i might be clipped at sun-position j for rotation k
         clipped = visible & s(3,:) < sind(asind(maxhz) + obj.cs(:)); % [Nc Ns Nr]
@@ -672,7 +677,7 @@ methods
         OPT.colors.sun = randomcolormap([1 1 0],obj.n.solar,0.2);
         OPT.colors.sun(:,4) = 0.5;
         OPT.colors.edges = 'w';
-        OPT.figh = [];
+        OPT.ax = [];
         OPT.labels = false;
         OPT.wires = false;
         OPT.prj = 'lambert';        
@@ -691,8 +696,13 @@ methods
         
         if ~isa(OPT.prj,'polyprojector'), OPT.prj = polyprojector(OPT.prj); end
         
-        if isempty(OPT.figh) || ~ishandle(OPT.figh), OPT.figh = GUIfigure('ShadingRegions'); end
-
+        if isempty(OPT.ax) || ~ishandle(OPT.ax)
+            OPT.ax = GUIfigure('ShadingRegions'); 
+        else
+            validateattributes(OPT.ax,{'matlab.graphics.axis.Axes','matlab.ui.Figure'},{'scalar'});
+        end
+        if isa(OPT.ax,'matlab.ui.Figure'), OPT.ax = axes(OPT.ax); end
+    
         % Project and clip sky/albedo regions
         [prj,rot] = projectstatic(obj,OPT.prj,OPT.horizon,OPT.rotation);
 
@@ -704,7 +714,7 @@ methods
         prj.albedo(cellfun(@area,prj.albedo)/(pi*OPT.prj.r0^2) < 1e-4) = {polygon.empty};
         prj.solar(cellfun(@area,prj.solar)/(pi*OPT.prj.r0^2) < 1e-4) = {polygon.empty};
 
-        axes(OPT.figh); cla(); hold on;
+        axes(OPT.ax); cla(); hold on;
         h.sky = batchplot(prj.sky,OPT.colors.sky,OPT.colors.edges);
         h.albedo = batchplot(prj.albedo,OPT.colors.gnd,OPT.colors.edges);
         h.solar = batchplot(prj.solar,OPT.colors.sun,OPT.colors.edges);
@@ -732,7 +742,7 @@ methods
         
         if nargout > 0, varargout = {OPT,h}; end
         
-        if OPT.dynamic, set(OPT.figh,'WindowKeyPressFcn', @KeyPress); end
+        if OPT.dynamic, set(OPT.ax.Parent,'WindowKeyPressFcn', @KeyPress); end
         
         function h = batchplot(P,C,e)
         % Plot all polygons P with colors C, edge color E
@@ -740,9 +750,8 @@ methods
             if isempty(P), h = matlab.graphics.primitive.Patch.empty; return; end
             haveholes = cellfun(@(p) any([p.hole]),P);
             if any(haveholes)
-                h{1} = arrayfun(@(k) polyplot(P{k},C(k,:),e),find(haveholes));
-                h{2} = batchplot(P(~haveholes),C(~haveholes,:),e);
-                h = cat(1,h{:});
+                h = arrayfun(@(k) polyplot(P{k},C(k,:),e),find(haveholes),'unif',0);
+                h = [h{:},batchplot(P(~haveholes),C(~haveholes,:),e)];
                 return;
             end
         
@@ -1126,11 +1135,12 @@ methods (Static = true)
         if isthere(S,'cs'), obj.cs = sort(S.cs(:))'; end
         
         % Clip all sky-regions to horizon
-        CPrj = polyprojector('azim','angtol',45,'clip',90);
-        for j = 1:numel(obj.sky)
-            [~,obj.sky{j}] = CPrj.project(obj.sky{j});
-        end
-    
+%         CPrj = polyprojector('azim','angtol',45,'clip',90);
+%         for j = 1:numel(obj.sky)
+%             [~,obj.sky{j}] = CPrj.project(obj.sky{j});
+%         end
+        obj.sky = cellfun(@(p) clipwithplane(p,[0;0;1],[0;0;0]),obj.sky,'unif',0);
+
         % Use a Lambert equal area projection to get approx. region solid angles
         AzPrj = polyprojector('lambert','normalize',sqrt(2));
         tol = (AzPrj.angtol*pi/180)^2/6; % area tolerance

@@ -818,6 +818,23 @@ classdef pvArea < matlab.mixin.Copyable
                 if isempty(P) || f < thresh, return; end
                 if f > 1-thresh, f = 1; end
                 
+                if f < 1 && ~isempty(G.elements) && opt.depth > 1
+                    
+                    if opt.plot, last_plotted = numel(h); end
+
+                    opt.depth = opt.depth - 1;
+                    for j = 1:G.dims(1)
+                       ff = recursivefactors(G.elements(j),P,opt);
+                       ShF(j,:) = ff(:);
+                    end
+                    
+                    if all(ShF == 1,'all') && opt.plot
+                        f = 1;
+                        delete(h(last_plotted+1:end));
+                        h(last_plotted+1:end) = [];
+                    end
+                end
+                
                 if f == 1 || isempty(G.elements) || opt.depth == 1
                     ShF(:) = f;
                     if opt.plot
@@ -826,11 +843,11 @@ classdef pvArea < matlab.mixin.Copyable
                                     'Facealpha',f*opt.alpha,'EdgeColor',opt.edgecolor); 
                     end
                 else
-                    opt.depth = opt.depth - 1;
-                    for j = 1:G.dims(1)
-                       f = recursivefactors(G.elements(j),P,opt);
-                       ShF(j,:) = f(:);
-                    end
+%                     opt.depth = opt.depth - 1;
+%                     for j = 1:G.dims(1)
+%                        f = recursivefactors(G.elements(j),P,opt);
+%                        ShF(j,:) = f(:);
+%                     end
                 end
             end
             

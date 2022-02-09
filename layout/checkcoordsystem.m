@@ -1,6 +1,6 @@
 function [x,y,z,S,info] = checkcoordsystem(x,y,z,varargin)
-% [X,Y,Z,S] = CHECKCOORDSYSTEM(LON,LAT,ALT,..,['output','prj'])
-% [LAT,LON,ALT,S] = CHECKCOORDSYSTEM(X,Y,Z,..,'output','abs')
+% [X,Y,Z,S] = CHECKCOORDSYSTEM(LON,LAT,ALT,[P],..,['output','prj'])
+% [LAT,LON,ALT,S] = CHECKCOORDSYSTEM(X,Y,Z,[P],..,'output','abs')
 %   Parse coordinate-system specification P (alternatively provided/modified through name,value
 %   pairs), and transform input coordinates from system P onto project-centered (rotated) Transverse
 %   Mercator ('prj') coordinates or WGS84 decimal degree ('abs' coordinates).
@@ -129,11 +129,11 @@ function [x,y,z,S,info] = checkcoordsystem(x,y,z,varargin)
             [lat,lon] = utm2deg(x+origin(1),y+origin(2),zone);
             
         else
-            try
+            % try
                 [lon,lat] = proj(system,x,y);              
-            catch
-                error('Coordinate System (%s) is not recognized!',system)
-            end
+            % catch ERR
+            %     error('Coordinate System (%s) is not recognized!',system)
+            % end
         end 
         
         lon0 = round(mean(lon,'omitnan'),6);

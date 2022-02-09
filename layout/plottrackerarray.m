@@ -67,7 +67,7 @@ function varargout = plottrackerarray(Trck,varargin)
     end
         
     parsestruct(Trck,{'centers'},'numeric','real','size',[3,NaN]);
-    parsestruct(Trck,{'geom'},'class','pvArea','scalar');
+    % parsestruct(Trck,{'geom'},'class','pvArea','scalar');
     parsestruct(Trck,{'origin'},'numeric','real','size',[1,3]);
     
     Ntr = size(Trck.centers,2); 
@@ -249,8 +249,8 @@ function varargout = plottrackerarray(Trck,varargin)
             if using_masks
                 C = repmat(COLORS.passive(1:3),Ntr,1);
                 C(analysed,:) = repmat(COLORS.active(1:3),numel(analysed),1);
-                C(analysed(last_idx),:) = [1,0,0];
-                C(Trck.masks(opt.idx,:),2) = 1;
+                C(analysed(last_idx),:) = [1,1,0];
+                C(Trck.masks(last_idx,:),2) = 1;
                 htr.FaceVertexCData = C;
             end
         end
@@ -262,21 +262,21 @@ function varargout = plottrackerarray(Trck,varargin)
             end
 
             if ~isempty(shfcn)
-                if nargin < 6
+                if nargin < 6 || isempty(gndshade) || isempty(trib)
                     [gndshade,trib] = shfcn(t);
                 end
                 set(hgnd,'FaceVertexCData',GndColor.*(0.2+0.8*(1-gndshade).*trib));
             end
-
-            if ishandle(hax)
-                if size(R,4) > 1, tidx = t; else, tidx = 1; end
-                if size(R,3) > 1, midx = analysed(last_idx); else, midx = 1; end
-                pts = R(:,:,midx,tidx)*(mountaxes+offset) + origin;
-                [hax.XData,hax.YData,hax.ZData] = deal(pts(1,:),pts(2,:),pts(3,:)); 
-            end
-            
-            sun = sunvec(t,:)'*scale + origin;
-            [hsun.XData(2),hsun.YData(2),hsun.ZData(2)] = deal(sun(1),sun(2),sun(3));
+        end
+        
+        sun = [origin,sunvec(t,:)'*scale + origin];
+        [hsun.XData,hsun.YData,hsun.ZData] = deal(sun(1,:),sun(2,:),sun(3,:));
+        
+        if ishandle(hax)
+            if size(R,4) > 1, tidx = t; else, tidx = 1; end
+            if size(R,3) > 1, midx = analysed(last_idx); else, midx = 1; end
+            pts = R(:,:,midx,tidx)*(mountaxes+offset) + origin;
+            [hax.XData,hax.YData,hax.ZData] = deal(pts(1,:),pts(2,:),pts(3,:)); 
         end
 
         last_t = t;

@@ -4,7 +4,7 @@ classdef shadeanalysisplotter < plotter
         groundshading
         
         axislimits      % [xmin xmax ymin ymax zmin zmax] for layout scene plotting
-		axisorigin      % [x0,y0,z0] for plotting of moving axes and sun-vector
+		axisoffset      % [x0,y0,z0] for plotting of moving axes and sun-vector
         subplothandles  % structure of sub-plot handles {scene,beamsh,povproj,shregions}
         
         Mounts
@@ -29,21 +29,21 @@ classdef shadeanalysisplotter < plotter
             narginchk(6,6);
             
             % Initialize base plotter object (it will call this class's drawplotter/drawwaitbar)
-            obj@plotter(NaN,'Shading Analysis',varargin);
+            obj@plotter(plotting,'Shading Analysis',varargin);
             
             if nargin < 6 || any(cellfun(@isempty,varargin))
                assert(~plotting,'Plotting-enabled object requires full constructor call');
                setbtn(obj,[],'Enable','off')
             end
             varargin(end+1:5) = {[]};
-            [obj.Mounts,obj.sunaz,obj.sunel,obj.Gnd,opt] = deal(varargin);
+            [obj.Mounts,obj.sunaz,obj.sunel,obj.Gnd,opt] = deal(varargin{:});
             if ~isempty(opt)
                 obj.diffuseshading = opt.diffuseshading;
                 obj.groundshading = opt.groundshading;
             end
 
             obj.axislimits = zeros(1,6);
-            obj.axisorigin = [0;0;0];            
+            obj.axisoffset = [0;0;0];            
             obj.polyh = struct('trckaxis',NaN,'sunvec',NaN,'pjtrackers',NaN,'pjshades',NaN);
             obj.colors = getcolors();
             
@@ -101,19 +101,23 @@ classdef shadeanalysisplotter < plotter
         % Determine axis limits from a set of tracker centers
             assert(ishandle(obj.fighandle),'shadeanalysisplotter:noobj','Closed by user');
             
-            lims = bounds(obj.Mounts.centers(:,obj.Mounts.masks(tr,:)),2);
+            [lims(:,1),lims(:,2)] = bounds([obj.Mounts.centers(:,obj.Mounts.masks(tr,:)),...
+                                            obj.Mounts.centers(:,tr)],2);
 			scale = max(diff(lims,1,2)); % get largest system dimension
-            scale = max(scale, sqrt(area(obj.Mounts.geom.border))*10);
-			origin = obj.Mounts.centers(obj.Mounts.analysedtrackers(tr,:),:);
+            % scale = max(scale, sqrt(area(obj.Mounts.geom.border))*10);
+			origin = obj.Mounts.centers(:,obj.Mounts.analysedtrackers(tr,:));
             
 			lims = repmat(origin,1,2)+[-2,2;-2,2;-1,1]*scale*0.3;
 			lims = lims';
 			obj.axislimits = lims(:);
 		end
 
-		function setaxisorigin(obj,origin)
+		function minorupdate(obj,t,tr,offset)
             assert(ishandle(obj.fighandle),'shadeanalysisplotter:noobj','Closed by user');
-			obj.axisorigin = origin;
+            validateattributes(offset,'numeric',{'finite','real','size',[3,1]});
+            if ~isequal(obj.axisoffset,offset)
+                obj.updatefcn(t,tr,offset);
+            end
         end
 
 		function majorupdate(obj,t,tr,BLPoly,STRI,BTRI)
@@ -126,7 +130,7 @@ classdef shadeanalysisplotter < plotter
                     
             obj.setaxislimits(tr);
             obj.updatefcn(t,tr,[],isfield(obj.Mounts,'masks'),STRI,BTRI);
-            axis(obj.subplothandles.scene,obj.axislimits);
+            % axis(obj.subplothandles.scene,obj.axislimits);
             
             title(obj.subplothandles.scene,...
                 sprintf('sunel %0.1f^o, sunaz %0.1f^o (%s)',obj.sunel(t),obj.sunaz(t)));
@@ -134,9 +138,9 @@ classdef shadeanalysisplotter < plotter
             % Plot beam shades (if any)
             obj.plotbeamshades(BLPoly);
             title(obj.subplothandles.beamsh, ...
-                sprintf('t = %03d/%d, tr = %02d/%d',t,Nt,tr,Nu));
+                sprintf('t = %03d, tr = %02d',t,tr));
         end
-        
+
 % function plotscenario(obj,TckP,mask,GndShP)
 %             persistent ax;
 %             persistent gshh;
@@ -159,7 +163,7 @@ classdef shadeanalysisplotter < plotter
 % 			hold on
 % 			% Plot absolute axis (polyline: x 0 y 0 z)
 %             if ~isempty(ax) && ishandle(ax), delete(ax); end
-% 			ax = [1 0 0 0 0;0 0 1 0 0;0 0 0 0 1]*axisscale+repmat(obj.axisorigin,1,5);
+% 			ax = [1 0 0 0 0;0 0 1 0 0;0 0 0 0 1]*axisscale+repmat(obj.axisoffset,1,5);
 % 			ax = plot3(ax(1,:),ax(2,:),ax(3,:),'k-');
 % 
 % 			% Plot Shade Polygons
@@ -189,7 +193,7 @@ classdef shadeanalysisplotter < plotter
 % 			hold off
 % 		end
 
-		function plotbeamshades(obj,PolyShadesPOA)
+		function plotbeamshades(obj,BLPoly)
         % Plot frontal view of (shaded) tracker under analysis
         
             MOUNT = [0.1 0.1 0.4];
@@ -203,17 +207,19 @@ classdef shadeanalysisplotter < plotter
             figure(obj.fighandle);
 			subplot(obj.subplothandles.beamsh); 
 			cla();
-            trackeroutline = polygon.unpack(obj.Mounts.geom.border);
+            trackeroutline = obj.Mounts.geom.border;
+            if isstruct(trackeroutline), trackeroutline = polygon.unpack(trackeroutline); end
 
-            if nargin < 3 || isempty(PolyShadesPOA) || isequal(PolyShadesPOA,0)
+            if nargin < 2 || isempty(BLPoly) || isequal(BLPoly,0)
+                polyplot(trackeroutline,MOUNT,MOUNT_EDGE);
+            elseif isequal(BLPoly,1)
                 polyplot(trackeroutline,LIGHT,LIGHT_EDGE);
-            elseif isequal(PolyShadesPOA,1)
+                polyplot(trackeroutline,SHADE,SHADE_EDGE);
+            elseif isstruct(BLPoly)
                 polyplot(trackeroutline,MOUNT,MOUNT_EDGE);
-            elseif isstruct(PolyShadesPOA)
-                polyplot(trackeroutline,MOUNT,MOUNT_EDGE);
-                pvArea.shadingfactors(obj.Mounts.geom,PolyShadesPOA,'-pack16','depth',3,...
+                pvArea.shadingfactors(obj.Mounts.geom,BLPoly,'-pack16','depth',3,...
                     '-plot','alpha',1,'color',LIGHT,'edgecolor',LIGHT_EDGE);
-                polyplot(polygon.unpack(PolyShadesPOA),SHADE,SHADE_EDGE);
+                polyplot(polygon.unpack(BLPoly),SHADE,SHADE_EDGE);
                 % p = polygon.unpack(PolyShadesPOA);
 				% polyplot(p,[0.2 0.2 0.8],'none');
             else
@@ -281,6 +287,7 @@ classdef shadeanalysisplotter < plotter
 
                 haveholes = cellfun(@(p) any([p.hole]),P);
                 if any(haveholes)
+                    warning_reseter = naptime('MATLAB:delaunayTriangulation:ConsSplitPtWarnId'); %#ok<NASGU>
                     arrayfun(@(k) polyplot(P{k},C(k,:),'w'),find(haveholes));
                     batchplot(P(~haveholes),C(~haveholes,:));
                     return;

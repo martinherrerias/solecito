@@ -18,8 +18,10 @@ function varargout = approxgroundmesh(Mounts,buffer,dmin,dmax,tol)
 %   DMIN,DMAX are used to simplify/refine the mesh obtained as described above. Defaults are
 %   taken from SimOptions.terrain.minmeshdist/maxmeshdist.
 %
-% [TRI,VV,P,w] = APPROXGROUNDMESH(MOUNTS,...) call FINEMESHPOINTS with n = floor(DMAX/DMIN) to
+% [TRI,VV,P,W] = APPROXGROUNDMESH(MOUNTS,...) call FINEMESHPOINTS with n = floor(DMAX/DMIN) to
 %   provide a finer set of vertices VV, of which P(k,:) are located in TRI(k,:).
+%   W is a vector with weights, proportional to 1 for original vertices (corners), 3 for new 
+%   vertices on the edges, and 6 for new vertices inside the triangle.
 %
 % See also: PLOTTRACKERARRAY, READTERRAIN
 

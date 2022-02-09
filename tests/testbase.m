@@ -62,6 +62,7 @@ function testbase(varargin)
     if opt.flat, optargs = {'flathorizon',true}; else, optargs = {}; end
     
     if opt.restart || isempty(dir('base.ssp'))
+        if ~isempty(dir('base.ssp')), delete('base.ssp'); end
         if ~isempty(dir('base.log')), delete('base.log'); end
         f = splitscript('base.ssp',{'setup','models','meteo'},'onerror',opt.onerror,'simoptions',optargs);
         assert(~stoponerror || f == 0,'error while evaluatig testbase');
@@ -100,7 +101,7 @@ function testbase(varargin)
                delete '*.arrdef';
                delete '*.mpoly';
             end
-            samplesystem(type{1},mdims,'landscape',DEM,'files',true,'location',Loc);
+            samplesystem(type{1},mdims,'landscape',DEM,'files',true,'location',Loc,'az',15);
             
             lbl{1} = regexprep(pickfile('*.mounts',1),'[\.\\/]*(.*)_[\dxm]+\.mounts','$1');
             lbl{2} = regexprep(pickfile('*.arrdef',1),'[\.\\/]*sample(.*).arrdef','$1');

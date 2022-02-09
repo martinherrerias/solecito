@@ -789,10 +789,10 @@ methods (Hidden = true)
         colorbar(ax(1));
 
         % For Diffuse shading, plot DwF and DshF as colors on ShR.worldgeom plots
-        [~,H{1}] = plot(ShR.worldgeom,'labels',true,'figh',ax(3));
+        [~,H{1}] = plot(ShR.worldgeom,'labels',true,'ax',ax(3));
         text(-1.5,1.4,'DwF','fontweight','bold');
 
-        [~,H{2}] = plot(ShR.worldgeom,'labels',true,'figh',ax(4));
+        [~,H{2}] = plot(ShR.worldgeom,'labels',true,'ax',ax(4));
         text(-1.5,1.4,'DshF','fontweight','bold');
 
         H{3} = plotbeamshading(ax(2));

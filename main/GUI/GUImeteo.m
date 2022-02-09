@@ -2,7 +2,7 @@ function GUImeteo(varargin)
 % GUIMETEO() - Imports Meteorological Data, calculates Sun Positions and derived quantities
 %              Requires SimOptions, from GUIsetup
 %
-% GUIMETEO(METEODATA,TIME,LOC) - Re-process existing METEODATA.
+% GUIMETEO(MD,TIME,LOC) - Re-process existing METEODATA object.
 
     global GUI
 
@@ -13,11 +13,15 @@ function GUImeteo(varargin)
     opt = getSimOption('meteo');
     
     % Backdoor for re-filtering, resampling, etc. 
-    if nargin == 3 && all(cellfun(@isstruct,varargin))
+    if nargin > 0 && ~isa(varargin{1},'matlab.ui.control.UIControl')
         setflag('meteo',-3,'Reprocessing MeteoData...');
         fprintf('Reprocessing MeteoData\n');
-        [MeteoData, Time, Loc] = deal(varargin{:});
-        [Time,MeteoData.timestep] = parsetime(Time);
+        if nargin == 1 && isa(varargin{1},'MeteoData')
+            MD = MeteoData(varargin{1});
+        elseif nargin == 3 && all(cellfun(@isstruct,varargin))
+        % GUImeteo(S,Time,Loc)
+            MD = MeteoData(varargin{1},'t',varargin{2},'location',varargin{3},'interval','c');
+        end
     else
         setflag('meteo',-3,'Importing Time & MeteoData...');
         fprintf('Importing Time & MeteoData\n');
@@ -28,31 +32,30 @@ function GUImeteo(varargin)
         cd(fileparts(filename)); % switch to meteo-file location for wps_.. files to be found
         
         fprintf('Source: %s\n',relativepath(filename));
-        [MeteoData, Time, Loc] = getMeteoData(filename,[]);
+        MD = MeteoData.import(filename,[]);
     end
-    Nt = numel(Time);
 
-    txt = @(S) [deg2dms(S.latitude,'NS'),', ',deg2dms(S.longitude,'EW')];
+    loctxt = @(S) [deg2dms(S.latitude,'NS'),', ',deg2dms(S.longitude,'EW')];
 
-    if isfield(Loc,'name')
-        flagmsg{1} = sprintf('Site/dataset name: ''%s''',Loc.name);
+    if isfield(MD.location,'name')
+        flagmsg{1} = sprintf('Site/dataset name: ''%s''',MD.location.name);
     else
         flagmsg{1} = 'Unnamed location';
     end
     if ischar(opt.filter), filtername = opt.filter; 
-    elseif islogical(opt.filter), filtername = sprintf('logical, %d/%d samples',nnz(opt.filter),Nt);
-    else, filtername = sprintf('index, %d/%d samples',numel(opt.filter),Nt);
+    elseif islogical(opt.filter), filtername = sprintf('logical, %d/%d samples',nnz(opt.filter),MD.Nt);
+    else, filtername = sprintf('index, %d/%d samples',numel(opt.filter),MD.Nt);
     end
     assert(mod(opt.downsample,1)==0 && opt.downsample > 0,'Cannot use fractional re-sampling yet!');
 
-    flagmsg{2} = sprintf('Loc: %s, %dmASL', txt(Loc), Loc.altitude);
+    flagmsg{2} = sprintf('Loc: %s, %dmASL', loctxt(MD.location), MD.location.altitude);
     if ~isequal(filtername,'all')
-        MeteoData.info{end+1} = sprintf('filter:''%s''',filtername);
-        flagmsg{2} = strjoin([flagmsg(2),MeteoData.info(end)],', ');
+        MD.info{end+1} = sprintf('filter:''%s''',filtername);
+        flagmsg{2} = strjoin([flagmsg(2),MD.info(end)],', ');
     end
     if opt.downsample~=1
-        MeteoData.info{end+1} = sprintf('%dX downsampled',opt.downsample);
-        flagmsg{2} = strjoin([flagmsg(2),MeteoData.info(end)],', ');
+        MD.info{end+1} = sprintf('%dX downsampled',opt.downsample);
+        flagmsg{2} = strjoin([flagmsg(2),MD.info(end)],', ');
     end
     fprintf('%s\n',flagmsg{:});
 
@@ -66,7 +69,7 @@ function GUImeteo(varargin)
                            '%0.1f km away from the project. The coordinates used for '...
                            'irradiance-transposition (%s) will not match those used for '...
                            'shading-calculations (%s), which might not ' ...
-                           'allow the calculation of POA irradiance.'],ds,txt(Loc),txt(Loc0));
+                           'allow the calculation of POA irradiance.'],ds,loctxt(Loc),loctxt(Loc0));
             switch optquestdlg([msg,'Do you still want to continue?'],...
                     'Inconsistent coordinates',...
                     'No, let me fix it','Yes, see what happens','No, let me fix it')
@@ -79,22 +82,34 @@ function GUImeteo(varargin)
             end
         end
     end
-    
-    % TODO: Get sensor data, cluster variables by type
-    % [MeteoData,Sensors] = getsensordata(MeteoData);
-    % ...
 
-    % Calculate Solar-Position & dependent parameters
-    setflag('meteo',-3,[flagmsg,{'Calculating solar position & dependent variables...'}]);
-    [MeteoData, Time, SunPos, Loc] = completemeteodata(MeteoData,Time,Loc);
-    flagmsg{3} = sprintf('%d/%d time-steps, %s intervals\n',...
-        numel(Time),Nt,char(MeteoData.timestep));
+    Nt0 = MD.Nt;
+
+    setflag('meteo',-3,[flagmsg,{'Performing Quality Control & Ancilliary Gap Filling...'}]);
+    MD = completemeteodata(MD);
+
+    % PROVISIONAL
+    newname = meteofilename(MD.location,MD.t(1),MD.t(end),MD.timestep,'suffix','_QCMD.mat');
+    if isempty(dir(newname)), backupdelete(newname); end
+    save(newname,'MD');
+    
+    MD = cleanup(MD);
+
+    plot(MD,'shade');
+    plot(MD,'ktrd');
+    plot(MD,'heatmap');
+
+    MD = MD.filter('downsample',opt.downsample,'filter',opt.filter);
+    flagmsg{3} = sprintf('%d/%d time-steps, %s intervals\n',MD.Nt,Nt0,char(MD.timestep));
     %Nt = numel(MeteoData.GHI);
     fprintf('%s',flagmsg{3});
 
-    % struct2csv({Time,SunPos,MeteoData},Nt,'meteo.csv');
+    % PROVISIONAL
+    Loc = MD.location;
+    Time = MD.t;
+    [MD,SunPos] = legacy(MD);
 
-    assignin('base','MeteoData',MeteoData);
+    assignin('base','MD',MD);
     assignin('base','Time',Time);
     assignin('base','SunPos',SunPos);
     assignin('base','Location',Loc);

@@ -551,7 +551,7 @@
                     P(j).x = V(F{j},1)';
                     P(j).y = V(F{j},2)';
                 end
-                if is3d, for j = 1:size(F,1), P(j).z = V(F{j},3)'; end; end
+                if is3d, for j = 1:numel(F), P(j).z = V(F{j},3)'; end; end
             else
                 f = ~isnan(F);
                 if any(mod(F(f),1)~=0) || any(F(f) > size(V,1)) || any(F(f) < 1) 

@@ -77,7 +77,7 @@ function ShRes = ShadingAnalysis(varargin)
                 'IAM','sensors'}; % TODO: these two are actually important inputs!
             
     % Mininum list of variables that allow resuming after crash
-    VARS_TO_SAVE = {'sunaz','sunel','Trackers','HorProf','ShRegions','options',...
+    BACKUP_VARS = {'sunaz','sunel','Trackers','Terrain','ShRegions','options',...
         'simtimer','BLPoly','BshF','Nsb','DshF','DwF0','DwF','belowhorizon','t'};
 
     options = rmfield(SimOptions,setdiff(fieldnames(SimOptions),REQ_OPT));
@@ -89,10 +89,10 @@ function ShRes = ShadingAnalysis(varargin)
     case 0
     % RES = SHADINGANALYSIS('backup',S)
     % Resume from crash, load existing results from previous partial simulation structure...
-        assert(isstruct(options.backup) && all(isfield(options.backup,VARS_TO_SAVE)),...
+        assert(isstruct(options.backup) && all(isfield(options.backup,BACKUP_VARS)),...
             'Failed to recover from backup');
 
-        varargin = struct2cell(orderfields(options.backup,VARS_TO_SAVE));
+        varargin = struct2cell(orderfields(options.backup,BACKUP_VARS));
         [sunaz,sunel,Trackers,Terrain,ShRegions,options,...
             simtimer,BLPoly,BshF,Nsb,DshF,DwF0,DwF,belowhorizon,t0] = deal(varargin{:});
         clear varargin
@@ -169,7 +169,7 @@ function ShRes = ShadingAnalysis(varargin)
     warning_resetter = naptime(); %#ok<NASGU> used to avoid repeated warnings in loop
 
     % Process 
-    Nt = numel(SunPos.Az);
+    Nt = numel(sunaz);
     Ntr = size(Trackers.centers,2);         % all trackers - shadow throwers
     Nu = numel(Trackers.analysedtrackers);  % analysed trackers (receivers)
 
@@ -198,52 +198,18 @@ function ShRes = ShadingAnalysis(varargin)
     % Main projection function is integrated IAM·cos(z)
     IAMprj = polyprojector('IAM','fiam',options.IAM,'normalize',false,...
                                             'angtol',options.angtol,'tol',options.RelTol);
-    IAMprj_r0 = IAMprj.fun(IAMprj.c0);
+    % IAMprj_r0 = IAMprj.fun(IAMprj.c0);
     
     % Get rotation matrices R, sun vectors, and layout update function
     [TrckFaces,getTrckVertices,sunvec,Rtrck] = plantlayout(Trackers,sunaz,sunel);
 
     n = permute(Rtrck(:,3,:,:),[1,4,3,2]); % [3,Nt*,Nu*] array of surface normals
-    behindsurface = shiftdim(sum(n.*sunvec,1) <= IAMprj.c0,1); % [Nt,Nu*] logical, dot(n,s) <= c0
+    behindsurface = shiftdim(sum(n.*sunvec',1) <= IAMprj.c0,1); % [Nt,Nu*] logical, dot(n,s) <= c0
 
     equalrotations = size(Rtrck,3) == 1;
     staticsystem = size(Rtrck,4) == 1;
     if staticsystem, Nt_ifmoving = 1; else, Nt_ifmoving = Nt; end
     
-    if options.groundshading
-        % FUTURE: allow use of external Terrain.nGnd 
-        
-        % Get ground triangulation(s) and shading update function
-        [getgroundshading,Gnd,GndVV,GndP,~] = groundshading(Trackers,sunvec,getTrckVertices);
-        
-        % Gnd_normals = Gnd.faceNormal;
-        
-        % [GndV,GndTri] = approxgroundmesh(Trackers);
-        % %flatground = all(Trackers.centers(3,:) == Trackers.centers(3,1));
-        % if ~flatground
-        %     warning('Sorry, Ground-Shading is not working yet');
-        %     options.groundshading = false;
-        % end
-        % % FUTURE: 3D-ground shading
-        % GndShP(Ntr,1) = polygon3d();		% Shades of all trackers over the ground
-        % GndShPclip(Ntr,1) = polygon3d();	% clipped behind the tracker plane
-        % PjGndShP(Ntr,1) = polygon();		% Projections of those shades
-        % shmask = false(1,Ntr);
-    else
-        Gnd = [];
-        % also if ~options.diffuseshading
-        % GndShP = polygon3d.empty;	% empty, just for [not] plotting
-        % PjGndShP = polygon3d.empty;
-        % shmask = false;
-    end
-    
-    if ~isfield(Trackers,'masks')
-    % Use as global mask, i.e. also for beam shading
-        mask_beam = gettrackermasks(Trackers,options.masktolerance);
-    else
-        mask_beam = Trackers.masks;
-    end
-
     if options.diffuseshading
         % An additional (more restrictive) mask is used for diffuse shading
         mask_diffuse = gettrackermasks(Trackers,options.RelTol,options.IAM);
@@ -253,6 +219,40 @@ function ShRes = ShadingAnalysis(varargin)
         Np = size(pointoffsets,2);
     else
         Np = 1;
+        options.groundshading = false;
+    end
+
+    if options.groundshading
+        % FUTURE: allow use of external Terrain.nGnd 
+        
+        % Get ground triangulation(s) and shading update function
+        [getgroundshading,Gnd,GndVV,GndP,~] = groundshading(Trackers,sunvec,getTrckVertices);
+        
+        % make sure most surface normals point up
+        Gnd_normals = Gnd.faceNormal;
+        k = Gnd_normals(:,3) < 0;
+        if mode(k) == 1
+            Gnd_normals = -Gnd_normals;
+            Gnd.ConnectivityList = Gnd.ConnectivityList(:,[1,3,2]);
+            k = ~k;
+        end
+        if any(k)
+            warning('Downward facing surface normals have not been tested');
+        end
+        
+        if staticsystem
+            GndVV_W0 = cell(Nu,1);
+            GndVV_W = cell(Nu,Np);
+        end
+    else
+        Gnd = [];
+    end
+    
+    if ~isfield(Trackers,'masks')
+    % Use as global mask, i.e. also for beam shading
+        mask_beam = gettrackermasks(Trackers,options.masktolerance);
+    else
+        mask_beam = Trackers.masks;
     end
 
     % Horizon profile(s)
@@ -275,7 +275,7 @@ function ShRes = ShadingAnalysis(varargin)
         else
         % use the azimuthal projections of both the horizon-profiles and the sun-positions
             AzPrj = polyprojector('azim','clip',false);
-            projsp = AzPrj.prj(sunvec);
+            projsp = AzPrj.prj(sunvec');
 
             AzPrj.angtol = 32/60; % Use sun-diameter of 32" as projection resolution 
             
@@ -312,7 +312,7 @@ function ShRes = ShadingAnalysis(varargin)
                 [DshF(1:Nu,1:Np).gndbeam] = deal(zeros(Nt,rShReg.n.albedo,'uint16'));
             end
         else
-            [F_sky,F_gnd,F_cs] = viewfactors(rShReg,IAMprj,n,sunvec,Terrain.fHor); % [Nt,Nc,Nu*]
+            [F_sky,F_gnd,F_cs] = viewfactors(rShReg,IAMprj,n,sunvec',Terrain.fHor); % [Nt,Nc,Nu*]
             for j = Nu:-1:1   
                 DwF(j,1).sky = packU16(F_sky(:,:,j));
                 DwF(j,1).albedo = packU16(F_gnd(:,:,j));
@@ -345,7 +345,7 @@ function ShRes = ShadingAnalysis(varargin)
             % sensornormals = unique(sensornormals','rows')';
             sensornormals = permute(sensornormals,[1,3,2]);
         end
-        [F0_sky,F0_gnd,F0_cs] = viewfactors(rShReg,IAMprj,sensornormals,sunvec,Terrain.fHor);  % [Nt,Nc,Ns]
+        [F0_sky,F0_gnd,F0_cs] = viewfactors(rShReg,IAMprj,sensornormals,sunvec',Terrain.fHor);  % [Nt,Nc,Ns]
         for j = size(F0_sky,3):-1:1   
             % Sensor diffuse component weight factors. [Ns,1] vector of structures, equivalent to
             % DwF but for Ns sensor orientations instead of Nu mount planes.
@@ -369,6 +369,7 @@ function ShRes = ShadingAnalysis(varargin)
         
     plotobj.Gnd = Gnd;
     plotobj.Mounts = Trackers;
+    % plotobj.Mounts.geom = trckgeom;
     if plotobj.isUI, setbtn(plotobj,[],'Enable','on'); end
     if options.plotting
         plotobj.switchtoplotter(); % switch to full-plotter
@@ -393,7 +394,7 @@ for t = t0:Nt
    
     s = sunvec(t,:)';
 
-    % Indexing variable for Nt_ifmoving arrays
+    % Indexing variable for Nt(only-if-moving) arrays
     if staticsystem, t_or_1 = 1; else, t_or_1 = t; end
 
     % Generate scenario: replicate rotated & translated mounts
@@ -401,16 +402,20 @@ for t = t0:Nt
         if staticsystem, TrckV = getTrckVertices; else, TrckV = getTrckVertices(t); end
         TrckP = polygon3d.vf2poly(TrckV,TrckFaces);
         
-        % Get an approximate "average-plane rotation" for each timestep
-        n = mean(Rtrck(:,3,:,t_or_1),3); % mean surface normal
-        Rap = [null(n')';n./norm(n)];
-        
-        % TODO: the average plane approach is clearly not very robust when using arrays in very
-        % different orientations. Maybe a clustering approach is needed?
-        if any(permute(Rtrck(:,3,~behindsurface,t_or_1),[3,1,2,4])*Rap(:,3) < 0.5)
-            warning('ShadeAnalysis:normals',...
-                'Surface normals in wildly different directions, results might be unreliable');
-            warning('off','ShadeAnalysis:normals');
+        if equalrotations
+            Rap = Rtrck(:,:,1,t_or_1);
+        else
+            % Get an approximate "average-plane rotation" for each timestep
+            n = mean(Rtrck(:,3,:,t_or_1),3); % mean surface normal
+            Rap = [null(n'),n./norm(n)];
+
+            % TODO: the average plane approach is clearly not very robust when using arrays in very
+            % different orientations. Maybe a clustering approach is needed?
+            if any(permute(Rtrck(:,3,~behindsurface(t_or_1,:),t_or_1),[3,1,2,4])*Rap(:,3) < 0.5)
+                warning('ShadeAnalysis:normals',...
+                    'Surface normals in wildly different directions, results might be unreliable');
+                warning('off','ShadeAnalysis:normals');
+            end
         end
     end
 
@@ -420,41 +425,9 @@ for t = t0:Nt
     if options.groundshading && ~all(belowhorizon(t,:))
         
         [STRI,BTRI,Gnd_shading,Gnd_brightness] = getgroundshading(t);
-        
-        % if flatground
-        %     FlatGndShP = polygon.empty;
-        %     for j = 1:Ntr
-        %         % Cast tracker shadows over flat ground (*)
-        %         P = polyprojectshadow(TrckP(j),s,[0;0;1],[0;0;0]); %(&)
-        %         FlatGndShP = mergepolygons(FlatGndShP,polygon(P));
-        %     end
-        %     GndShP = polygon3d(FlatGndShP);
-        % else
-        %     % error('3D ground shading is not working yet, you''re not supposed to be here');
-        %     % FUTURE: 3D-ground shading
-        %     % COMMENTED BEFORE INTRODUCTION OF usedTrck and uNtr!!!
-        %     FlatGndShP = polygon.empty;
-        %     for j = 1:Ntr
-        %         % Cast tracker shadows over mesh
-        %         P = polyprojectshadow(TrckP(j),s,GndTri);
-        %         % and merge the top projections only, i.e. (x,y)
-        %         FlatGndShP = mergepolygons(FlatGndShP,polygon(P));
-        %     end
-        % 
-        %     % project flat polygon back up into the mesh
-        %     P = polyprojectshadow(polygon3d(FlatGndShP),[0;0;1],GndTri);
-        % 
-        %     % add any mesh points inside the shade outline, and re-triangulate
-        %     gVinside = inpolygon(GndV(:,1),GndV(:,2),P.x,P.y);
-        %     [~,~,VV] = trianglemesh([(P.x;P.y;P.z)'; GndV(gVinside,:)]); aac ~scalar(P)
-        % 
-        %     VV = permute(VV,[2,3,1]); % VV(dim,vertex,triangle)
-        %     NshP = size(VV,3);
-        %     GndShP(NshP,1) = polygon3d();
-        %     for j = 1:NshP
-        %         GndShP(j) = polygon3d(VV(:,:,j));
-        %     end
-        % end
+        Gnd_shading = Gnd_shading.*Gnd_brightness;
+    else
+        STRI=[]; BTRI = [];
     end
     simtimer.add2lap('ground');
 
@@ -468,17 +441,11 @@ for t = t0:Nt
         Vp = TrckV - TrckV*n/dot(n,s)*s';
         
         % Change to plane's system of coordinates
-        Vp = Rap*Vp;
+        Vp = Vp*Rap;
         
         % Discard z (should be zero), and create packed polygons (for fast clipping)
         POAshP = pack(polygon3d.vf2poly(Vp,TrckFaces));
-        
-        % for j = 1:Ntr
-        %     % Calculate tracker projection in sunvec direction over an 'average' tracker plane
-        %     P = polyprojectshadow(TrckP(j),s,Rap(:,3),[0;0;0]);
-        %     % Change to plane's system of coordinates (z is discarded, should be zero), pre-pack for speed
-        %     POAshP(j) = pack(polygon(polyrotate(P,Rap')));
-        % end
+
         simtimer.add2lap('beam');
     end
     if t==t0, simtimer.addsplit('reached_trck_loop'); end
@@ -597,8 +564,12 @@ for t = t0:Nt
         if plotobj.plotting && (options.diffuseshading || isstruct(BLPoly{t,tr}))
             
             % Plotting of Scenario & Beam Shading
-            plotobj.majorupdate(t,tr,BLPoly,STRI,BTRI);
-            
+            if isempty(BLPoly{t,tr}) && all(BshF(t,tr,:)==0)
+                plotobj.majorupdate(t,tr,1,STRI,BTRI);
+            else
+                plotobj.majorupdate(t,tr,BLPoly{t,tr},STRI,BTRI);
+            end
+
             if ~options.diffuseshading
                 drawnow(); % last thing to plot
                 simtimer.add2lap('plotting');
@@ -617,33 +588,32 @@ for t = t0:Nt
             % For each mount i.e. surface orientation...
                 
                 % Calculate projections of static regions
-                [prj0,~,prj0_NC] = projectstatic(rShReg,IAMprj,Terrain.fHor,Rpov);
+                [prj0,~,prj0_NC] = projectstatic(rShReg,IAMprj,Terrain.fHor,Rpov');
 
                 % Get [possibly provisional (#)] sky view factors
                 DwF(tr).sky(t_or_1,:) = packU16(cellfun(@area,prj0.sky)./rShReg.solidangles.sky);
 
                 % Pack16 (significant) polygons, for faster clipping later
-                visible = DwF(tr).sky(t_or_1,:) >= U16tol;
-                DwF(tr).sky(t_or_1,~visible) = 0;
+                visible_sky = DwF(tr).sky(t_or_1,:) >= U16tol;
+                DwF(tr).sky(t_or_1,~visible_sky) = 0;
                 PjReg0(tr).sky = cell(1,rShReg.n.sky);
-                PjReg0(tr).sky(visible) = cellfun(@pack16,prj0.sky(visible),'unif',0);
-                % PjReg0(tr).sky(~visible) = {struct.empty};
+                PjReg0(tr).sky(visible_sky) = cellfun(@pack16,prj0.sky(visible_sky),'unif',0);
+                % PjReg0(tr).sky(~visible_sky) = {struct.empty};
                 
+                % Get ground view factors and pack16 (common) horizon projection...
                 PjReg0(tr).horizon = pack16(prj0.horizon);
+
+                DwF(tr).albedo(t_or_1,:) = packU16(cellfun(@area,prj0.albedo)./rShReg.solidangles.albedo);
+
+                visible_gnd = DwF(tr).albedo(t_or_1,:) >= U16tol;
+                DwF(tr).albedo(t_or_1,~visible_gnd) = 0;
                 
                 if options.flathorizon
-                % Get ground view factors and pack16 (common) horizon projection...
-                
-                    DwF(tr).albedo(t_or_1,:) = packU16(...
-                        cellfun(@area,prj0.albedo)./rShReg.solidangles.albedo);
-                    
-                    visible = DwF(tr).albedo(t_or_1,:) >= U16tol;
-                    DwF(tr).albedo(t_or_1,~visible) = 0;
                     PjReg0(tr).albedo = cell(1,rShReg.n.albedo);
-                    PjReg0(tr).albedo(visible) = cellfun(@pack16,prj0.albedo(visible),'unif',0);
-                    % PjReg0(tr).albedo(~visible) = {struct.empty};
+                    PjReg0(tr).albedo(visible_gnd) = cellfun(@pack16,prj0.albedo(visible_gnd),'unif',0);
+                    % PjReg0(tr).albedo(~visible_gnd) = {struct.empty};
                 else
-                % ... or keep non-clipped prj0_NC.albedo to use (higher) near-horizons later (#)
+                % ... keep non-clipped prj0_NC.albedo to use (higher) near-horizons later (#)
                     PjReg0(tr).albedo = cellfun(@pack16,prj0_NC.albedo,'unif',0);
                 end
             else
@@ -651,14 +621,14 @@ for t = t0:Nt
             end
             
             % Calculate projections & view-factors for circumsolar regions
-            PjReg0(tr).solar = projectsolar(rShReg,IAMprj,s,Rpov);
+            PjReg0(tr).solar = projectsolar(rShReg,IAMprj,s,Rpov')';
             PjReg0(tr).solar = cellfun(@pack16,PjReg0(tr).solar,'unif',0);
             % PjReg0(tr).solar = cellfun(@(p) polyclip(p,PjReg0(tr).horizon,'i'),PjReg0(tr).solar,'unif',0);
             DwF(tr).solar(t,:) = packU16(cellfun(...
                 @polygon.packedarea,PjReg0(tr).solar)./rShReg.solidangles.solar);    
-            visible = DwF(tr).solar(t,:) >= U16tol;
-            DwF(tr).solar(t,~visible) = 0;
-            PjReg0(tr).solar(~visible) = {struct.empty};
+            visible_cs = DwF(tr).solar(t,:) >= U16tol;
+            DwF(tr).solar(t,~visible_cs) = 0;
+            PjReg0(tr).solar(~visible_cs) = {struct.empty};
         else
             PjReg0(tr) = PjReg0(1);
             DwF(tr) = DwF(1);
@@ -675,97 +645,71 @@ for t = t0:Nt
         
         %% Diffuse Shading: near horizons
         if ~options.flathorizon
-        % FIX!: DwF currently actually takes NEAR-horizons into account! whatever effect this has
-        %   over that of the far-horizon should go into shading... 
-        %   Probably enough to comment DwF() assignments in here?
 
             if (~staticsystem || t == t0)
             % Apply Local Horizon profiles (#)
-                P = IAMprj.project(polyrotate(Terrain.nHor(tr),Rpov'),Rpov(3,:)',true);
+                P = IAMprj.project(polyrotate(Terrain.nHor(tr),Rpov),Rpov(3,:)',true);
                 PjReg0(tr).horizon = polyclip(PjReg0(tr).horizon,pack16(P),'i');
                 
-                visible = ~cellfun(@isempty,PjReg0(tr).sky);
-                PjReg0(tr).sky(visible) = cellfun(@(p) polyclip(p,PjReg0(tr).horizon,'i'),...
-                    PjReg0(tr).sky(visible),'unif',0);
-                % DwF(tr).sky(t,:) = packU16(cellfun(@polygon.packedarea,PjReg0(tr).sky)./ShRegions.solidangles.sky);
-                visible = DwF(tr).sky(t,:) >= U16tol;   
-                % DwF(tr).sky(t,~visible) = 0;
-                PjReg0(tr).sky(~visible) = {struct.empty};
+                visible_sky = ~cellfun(@isempty,PjReg0(tr).sky);
+                PjReg0(tr).sky(visible_sky) = cellfun(@(p) ...
+                    polyclip(p,PjReg0(tr).horizon,'i'),PjReg0(tr).sky(visible_sky),'unif',0);
+                DwF_sky_near = packU16(...
+                    cellfun(@polygon.packedarea,PjReg0(tr).sky)./ShRegions.solidangles.sky);
+                visible_sky = DwF_sky_near >= U16tol;   
+                PjReg0(tr).sky(~visible_sky) = {struct.empty};
+                % DwF_sky_near(~visible_sky) = 0;
+                % DwF(tr).sky(t,:) = DwF_sky_near;     
+                for j = 1:Np, DshF(tr,j).sky(t_or_1,:) = DwF_sky_near; end
                 
-                visible = ~cellfun(@isempty,PjReg0(tr).albedo);
-                PjReg0(tr).albedo(visible) = cellfun(@(p) polyclip(p,PjReg0(tr).horizon,'d'),PjReg0(tr).albedo(visible),'unif',0);
-                % DwF(tr).albedo(t,:) = packU16(cellfun(@polygon.packedarea,PjReg0(tr).albedo)./ShRegions.solidangles.albedo);
-                visible = DwF(tr).albedo(t,:) >= U16tol;
-                % DwF(tr).albedo(t,~visible) = 0;
-                PjReg0(tr).albedo(~visible) = {struct.empty};
+                visible_gnd = ~cellfun(@isempty,PjReg0(tr).albedo);
+                PjReg0(tr).albedo(visible_gnd) = cellfun(@(p) ...
+                    polyclip(p,PjReg0(tr).horizon,'d'),PjReg0(tr).albedo(visible_gnd),'unif',0);
+                DwF_gnd_near = packU16(...
+                    cellfun(@polygon.packedarea,PjReg0(tr).albedo)./ShRegions.solidangles.albedo);
+                visible_gnd = DwF_gnd_near >= U16tol;
+                PjReg0(tr).albedo(~visible_gnd) = {struct.empty};
+                % DwF_gnd_near(~visible_gnd) = 0;
+                % DwF(tr).albedo(t,:) = DwF_gnd_near;
+                for j = 1:Np, DshF(tr,j).albedo(t_or_1,:) = DwF_gnd_near; end
             end
-            PjReg0(tr).solar = cellfun(@(p) polyclip(p,PjReg0(tr).horizon,'i'),PjReg0(tr).solar,'unif',0);
-            % DwF(tr).solar(t,:) = packU16(cellfun(...
-            %    @polygon.packedarea,PjReg0(tr).solar)./ShRegions.solidangles.solar);
-            visible = DwF(tr).solar(t,:) >= U16tol;
-            % DwF(tr).solar(t,~visible) = 0;
-            PjReg0(tr).solar(~visible) = {struct.empty};
+            PjReg0(tr).solar = cellfun(@(p) ...
+                polyclip(p,PjReg0(tr).horizon,'i'),PjReg0(tr).solar,'unif',0);
+            DwF_cs_near = packU16(...
+                cellfun(@polygon.packedarea,PjReg0(tr).solar)./ShRegions.solidangles.solar);
+            visible_cs = DwF_cs_near >= U16tol;
+            PjReg0(tr).solar(~visible_cs) = {struct.empty};
+            % DwF(tr).solar(t,~visible_cs) = 0;
+            % DwF(tr).solar(t,:) = DwF_cs_near;
+            for j = 1:Np, DshF(tr,j).solar(t_or_1,:) = DwF_cs_near; end
         end
         simtimer.add2lap('diffuse');
             
         % Determine visible ground shades
-        if options.groundshading && ~belowhorizon(t,tr)
+        if options.groundshading && ~belowhorizon(t,tr) && any(visible_gnd)
             % GndSh_POA = polytranslate(GndShP,-Pref0);
             % GndSh_POA = polyrotate(GndSh_POA,Rpov);
             % GndSh_POA = clipwithplane(GndSh_POA,[0;0;1],[0;0;0]);
             
-            % Rotate rough ground mesh, and reduce to visible facets
-            GndV_POA = (Gnd.Points - Pref0')*Rpov';
-            GndT_POA = Gnd.connectivityList;
-            
-            Gnd_b0 = max(0,s(3)); % assume any areas not "assigned" are flat unshaded ground
-            DwF(tr).gndbeam(t,:) = packU16(Gnd_b0);
-            
-            visible = GndV_POA(:,3) > 0;
-            if any(visible)
-                GndT_POA = GndT_POA(any(visible(GndT_POA),2),:);
-                % [iv,~,GndT_POA] = unique(GndT_POA);
-                % GndT_POA = reshape(GndT_POA,[],size(GndP,2));
-                % GndV_POA = GndV_POA(iv,:);
-                % STRI_POA = SVTX(iv);
-
-                % Rotate fine mesh points (only for visible facets)
-                [iv,~,GndP_POA] = unique(GndP(GndT_POA,:));
-                GndP_POA = reshape(GndP_POA,[],size(GndP,2));
-                GndVV_POA = (GndVV(iv,:) - Pref0')*Rpov';
-                Gnd_shading_POA = Gnd_shading(iv);
-                Gnd_brightness_POA = Gnd_brightness(iv);
-
-                % Project mesh points, and assign vertex weights based on the projected area of 
-                % their connected triangles (weight zero for points behind visibility cone).
-                [VVprj,r] = IAMprj.prj(GndVV_POA);
-                W = triangleareas(VVprj,GndP_POA(:,1:3));
-                vtxW = accumarray(GndP_POA,W(GndP_POA),[],@mean);
-                vtxW = vtxW.*(r < IAMprj_r0);
-
-                for j = find(visible)
-                    inj = insidepolygon(pjreg.albedo(visible),VVprj);
-                    if any(inj)
-                        w = vtxW(inj)./rShReg.solidangles.albedo(j);
-                        wsum = sum(w);
-                        if wsum > 1
-                            keyboard()
-                            w = w./wsum;
-                        elseif wsum <= 0
-                            keyboard()
-                        end
-                        f = sum(Gnd_brightness_POA(inj).*w) + Gnd_b0.*(1-sumw);
-                        DwF(tr).gndbeam(t,j) = packU16(f);
-                    end
-                end
+            if ~staticsystem || isempty(GndVV_W0{tr})
+                W = GndVV_weights(Gnd,GndVV,GndP,Gnd_normals,Pref0,Rpov,IAMprj,PjReg0(tr).albedo);
+                GndVV_W0{tr} = W;
+            else
+                W = GndVV_W0{tr};
             end
+
+            DwF(tr).gndbeam(t,:) = packU16(Gnd_brightness'*W);
+            
+            % assume any areas not "assigned" are flat unshaded ground
+            f = ~any(W,1) & visible_gnd;
+            DwF(tr).gndbeam(t,f) = packU16(max(0,s(3)));
         end
         simtimer.add2lap('ground');
 
         % Plot POV-independent projected regions
         if plotobj.plotting
             plotobj.plotskyregions(PjReg0(tr),false,...
-                DwF(tr).sky(t_or_1,:),DwF(tr).albedo(t_or_1,:),DwF(tr).solar(t,:),DwF(tr).gndbeam(t,j));
+                DwF(tr).sky(t_or_1,:),DwF(tr).albedo(t_or_1,:),DwF(tr).solar(t,:));
             simtimer.add2lap('plotting');
         end
 
@@ -795,24 +739,24 @@ for t = t0:Nt
 
                 if ~isempty(PjObstacles)
                     % Substract the projection of all obstacles from (visible) static sky-regions
-                    visible = DwF(tr).sky(t_or_1,:) > 0;
-                    pjreg.sky(visible) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.sky(visible),'unif',0);
-                    pjreg.sky(~visible) = {struct.empty};
+                    visible_sky = DwF(tr).sky(t_or_1,:) > 0;
+                    pjreg.sky(visible_sky) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.sky(visible_sky),'unif',0);
+                    pjreg.sky(~visible_sky) = {struct.empty};
                     
-                    f = cellfun(@polygon.packedarea,pjreg.sky(visible))./rShReg.solidangles.sky(visible);
-                    DshF(tr,pt).sky(t_or_1,visible) = packU16(f);
+                    f = cellfun(@polygon.packedarea,pjreg.sky(visible_sky))./rShReg.solidangles.sky(visible_sky);
+                    DshF(tr,pt).sky(t_or_1,visible_sky) = packU16(f);
                     
-                    visible = visible & DshF(tr,pt).sky(t_or_1,:) > 0;
-                    pjreg.sky(~visible) = {struct.empty};
+                    visible_sky = visible_sky & DshF(tr,pt).sky(t_or_1,:) > 0;
+                    pjreg.sky(~visible_sky) = {struct.empty};
                     
                     % ... and from (visible) albedo-regions
-                    visible = DwF(tr).albedo(t_or_1,:) > 0;
-                    pjreg.albedo(visible) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.albedo(visible),'unif',0);
-                    f = cellfun(@polygon.packedarea,pjreg.albedo(visible))./rShReg.solidangles.albedo(visible);
-                    DshF(tr,pt).albedo(t_or_1,visible) = packU16(f);
+                    visible_gnd = DwF(tr).albedo(t_or_1,:) > 0;
+                    pjreg.albedo(visible_gnd) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.albedo(visible_gnd),'unif',0);
+                    f = cellfun(@polygon.packedarea,pjreg.albedo(visible_gnd))./rShReg.solidangles.albedo(visible_gnd);
+                    DshF(tr,pt).albedo(t_or_1,visible_gnd) = packU16(f);
                     
-                    visible = visible & DshF(tr,pt).albedo(t_or_1,:) > 0;
-                    pjreg.albedo(~visible) = {struct.empty};
+                    visible_gnd = visible_gnd & DshF(tr,pt).albedo(t_or_1,:) > 0;
+                    pjreg.albedo(~visible_gnd) = {struct.empty};
                 else
                     DshF(tr,pt).sky(t_or_1,:) = DwF(tr).sky(t_or_1,:);
                     DshF(tr,pt).albedo(t_or_1,:) = DwF(tr).albedo(t_or_1,:);
@@ -828,62 +772,43 @@ for t = t0:Nt
             end
             
             % Substract the projection of all obstacles from circumsolar-regions
-            visible = DwF(tr).solar(t,:) >= U16tol;
-            pjreg.solar(visible) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.solar(visible),'unif',0);
-            f = cellfun(@polygon.packedarea,pjreg.solar(visible))./rShReg.solidangles.solar(visible);
-            DshF(tr,pt).solar(t,visible) = packU16(f);
-            visible = visible & DshF(tr,pt).solar(t,visible) >= U16tol;
-            pjreg.solar(~visible) = {struct.empty};
+            visible_cs = DwF(tr).solar(t,:) >= U16tol;
+            if any(visible_cs)
+                pjreg.solar(visible_cs) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.solar(visible_cs),'unif',0);
+                f = cellfun(@polygon.packedarea,pjreg.solar(visible_cs))./rShReg.solidangles.solar(visible_cs);
+                DshF(tr,pt).solar(t,visible_cs) = packU16(f);
+                visible_cs = visible_cs & DshF(tr,pt).solar(t,visible_cs) >= U16tol;
+                pjreg.solar(~visible_cs) = {struct.empty};
+            end
 
-            if options.groundshading
-                DshF(tr,pt).gndbeam(t,:) = DwF(tr).gndbeam(t,:);
+            if options.groundshading && ~belowhorizon(t,tr) && any(visible_gnd)
 
-                visible = ~cellfun(@isempty,pjreg.albedo);
-                if any(visible) && ~belowhorizon(t,tr) % && ~isvoid(GndSh_POA)
-                    % Map visible ground shades to radiance preserving projection
-                    % P = polytranslate(GndSh_POA,-Pref);
-                    % P = polyrotate(P,Rpov);
-                    % P = IAMprj.project(P,Rpov(3,:)',false);
-                    % PjShadesGnd = polyclip(pack16(P),struct.empty,'u','pos'); 
-
-                    [VVprj,r] = IAMprj.prj(GndVV_POA - pointoffsets(:,pt));
-                    W = triangleareas(VVprj,GndP_POA(:,1:3));
-                    vtxW = accumarray(GndP_POA,W(GndP_POA),[],@mean);
-                    vtxW = vtxW.*(r < IAMprj_r0);
-
-                    for j = find(visible)
-                        inj = insidepolygon(pjreg.albedo(visible),VVprj);
-                        if any(inj)
-                            w = vtxW(inj)./rShReg.solidangles.albedo(j);
-                            wsum = sum(w);
-                            if wsum > 1
-                                keyboard()
-                                w = w./wsum;
-                            elseif wsum <= 0
-                                keyboard()
-                            end
-                            f = sum(Gnd_brightness_POA.*Gnd_shading_POA(inj).*w) + Gnd_b0.*(1-sumw);
-                            DshF(tr,pt).gndbeam(t,:) = packU16(f);
-                        end
-                    end
+                if ~staticsystem || isempty(GndVV_W{tr,pt})
+                    W = GndVV_weights(Gnd,GndVV,GndP,Gnd_normals,Pref,Rpov,IAMprj,pjreg.albedo);
+                    GndVV_W{tr,pt} = W;
+                else
+                    W = GndVV_W{tr,pt};
                 end
+                DshF(tr,pt).gndbeam(t,:) = packU16(Gnd_shading'*W);
+                
+                f = ~any(W,1) & DwF(tr).gndbeam(t,:) > 0;
+                DshF(tr,pt).gndbeam(t,f) = DwF(tr).gndbeam(t,f);
             end
 
             % Plot projections
             if plotobj.plotting
                 simtimer.add2lap('diffuse');
                 
-                plotobj.plotaxis(Pref,Rpov','r-',s); % Plot POV axis
-                
+                % plotobj.plotaxis(Pref,Rpov','r-',s); % Plot POV axis
+                plotobj.minorupdate(t,tr,pointoffsets(:,pt));
+
                 % Plot (or update) projections of trackers [and ground shades]
                 %plotter.plotprojectedtrck(PjTrckP,PjGndShP(shmask));
                 % plotobj.plotprojectedtrck(PjTrck,PjShadesGnd);
                 
+                shf = DshF(tr,pt).albedo(t_or_1,:);
                 if options.groundshading
-                   shf = double(DshF(tr,pt).albedo(t_or_1,:))*0.2 + ...
-                         double(DshF(tr,pt).gndbeam(t,:))/max(0.05,s(3))*0.8;
-                else
-                   shf = DshF(tr,pt).albedo(t_or_1,:);
+                   shf = double(shf)./UINT16MAX.*(0.2 + 0.8*double(DshF(tr,pt).gndbeam(t,:))/max(0.05,s(3)));
                 end
 
                 % Plot shaded sky regions
@@ -916,9 +841,9 @@ for t = t0:Nt
     simtimer.add2lap('diffuse');
                 
     % Dump complete workspace to partial-result file every AUTOSAVEMIN minutes
-    if ~isempty(options.backup) && (t == Nt) || ...
-            (simtimer.globaltime - lastsaved > options.autosavemin*60)
-        save(options.backup,VARS_TO_SAVE{:}); 
+    if ~isempty(options.backup) && ((t == Nt) || ...
+            (simtimer.globaltime - lastsaved > options.autosavemin*60))
+        save(options.backup,BACKUP_VARS{:}); 
         lastsaved = simtimer.globaltime;
         simtimer.add2lap('backup');
     end
@@ -932,7 +857,7 @@ someshading = cellfun(@isstruct,BLPoly);
 fullshading = all(BshF == UINT16MAX,3);
 
 if ~isempty(options.backup)
-    save(options.backup,VARS_TO_SAVE{:}); % DEBUG
+    save(options.backup,BACKUP_VARS{:}); % DEBUG
     simtimer.add2lap('backup');
 end
 
@@ -942,22 +867,12 @@ ShRes.info.timing = simtimer;
 ShRes.info.options = options;
 ShRes.worldgeom = ShRegions;
 ShRes.mountgeom = trckgeom;
-ShRes.pts = Trck.analysedpoints;
+ShRes.pts = Trackers.analysedpoints;
 ShRes.az = sunaz;
 ShRes.el = sunel;
 ShRes.partshaded = someshading;
 ShRes.fullshaded = fullshading;
 
-% BLPidx = zeros(Nt,Nu);                          % BLPidx(noshading) = 0;
-% BLPidx(fullshading) = -1;                       % index ID for 'fully shaded'
-% BLPidx(someshading) = 1:nnz(someshading(:));
-% 
-% ShRes.BLPidx = sparse(BLPidx);
-% ShRes.BLPoly = BLPoly(someshading(:));
-% BshF = reshape(BshF,Nt*Nu,Nm);
-% BshF = BshF(someshading(:),:);
-% Nsb = reshape(Nsb,Nt*Nu,Nm);
-% Nsb = Nsb(someshading(:),:);
 ShRes.BLPoly = BLPoly(someshading(:));
 
 ShRes.BshF = BshF;
@@ -968,48 +883,8 @@ ShRes.DwF0 = DwF0;
 
 ShRes = ShadingResults(ShRes);
 
+simtimer.add2lap('packing');
 %%
-simtimer.add2lap('packing'); 
-
-% function [Tri,V,VV] = groundmesh(Trackers)
-%     % get tracker base points
-%     x = Trackers.centers(1,:);
-%     y = Trackers.centers(2,:);
-%     z = Trackers.centers(3,:)-Trackers.centerheight;
-% 
-%     % add a surrounding circle, far away, with z = min(z)
-%     r = norm([max(x)-min(x),max(y)-min(y)]);
-%     [xc, yc] = pol2cart(0:0.25*pi:1.75*pi,repmat(10*r,1,8));
-%     x = [x,xc+mean(x)];
-%     y = [y,yc+mean(y)];
-%     z = [z,repmat(min(z),1,8)];
-% 
-%     % triangulate rough ground mesh
-%     %Tri = delaunay(x,y);
-%     %V = [x(:),y(:),z(:)];
-%     [Tri,V,VV] = trianglemesh(x,y,z);
-% end
-%
-% function [Tri,V,VV] = trianglemesh(varargin)
-% % trianglemesh(x,y,z) where x,y,z are N vectors
-% % trianglemesh(V) where V = [x,y,z]
-% 
-% % Organize a set of 3D points into a set of triangular surfaces.
-% % VV is an m·3·3 array, where VV(i,j,k) has coordinate j of vertex k for triangle i.
-% 
-%     if nargin == 1
-%         V = varargin{1};
-%     else
-%         V = [varargin{1}(:),varargin{2}(:),varargin{3}(:)];
-%     end
-% 
-%     Tri = delaunay(V(:,1),V(:,2));
-%     if nargout > 2
-%         VV(:,:,1) = V(Tri(:,1),:);
-%         VV(:,:,2) = V(Tri(:,2),:);
-%         VV(:,:,3) = V(Tri(:,3),:);
-%     end
-% end
 	
 function [Fgs,Nsb] = ModuleShadingFactors(LP)
 % Calculate linear geometrical shading factors FGS and number of shaded blocks NSB for each module
@@ -1055,14 +930,4 @@ function [Fgs,Nsb] = ModuleShadingFactors(LP)
     end
 end
 
-end
-
-function A = triangleareas(V,T)
-    x1 = V(T(:,1),1);
-    x2 = V(T(:,2),1);
-    x3 = V(T(:,3),1);
-    y1 = V(T(:,1),2);
-    y2 = V(T(:,2),2);
-    y3 = V(T(:,3),2);
-    A = 0.5*abs(x1.*(y2 - y3) + x2.*(y3 - y1) + x3.*(y1 - y2));
 end

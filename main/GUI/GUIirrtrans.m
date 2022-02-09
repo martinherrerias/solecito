@@ -15,7 +15,7 @@ function GUIirrtrans(~,~)
     finalwillandtestament = onCleanup(@updateflags);
     fprintf('\nRunning GUIirrtrans...\n');
 
-    MeteoData = evalin('base','MeteoData');
+    MD = evalin('base','MD');
     SunPos = evalin('base','SunPos');
     ShRes = evalin('base','ShRes');  
     Trck = evalin('base','Trackers');
@@ -28,8 +28,8 @@ function GUIirrtrans(~,~)
 
     fprintf('Evaluating Shading Results...\n');
 
-    [POA,ShR] = poairradiance(MeteoData,SunPos,Trck,fHor,ShRes);
-    [POA,EB] = effectiveirradiance(POA,MeteoData,Trck,material);
+    [POA,ShR] = poairradiance(MD,SunPos,Trck,fHor,ShRes);
+    [POA,EB] = effectiveirradiance(POA,MD,Trck,material);
 
     flagmsg{3} = 'Irradiance-transposition complete, see details in log';
 

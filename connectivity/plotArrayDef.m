@@ -1,12 +1,19 @@
 function varargout = plotArrayDef(ArrayDef,Mounts,varargin)
 % PLOTARRAYDEF(ARRAYDEF,MOUNTS) - create a color-coded representation of the connection scheme
 %   ARRAYDEF for the plant in MOUNTS.
-% PLOTARRAYDEF(ARRAYDEF,MOUNTS,ARRIDX) - Use structure of NDmap objects ARRIDX for labeling of 
+% PLOTARRAYDEF(ARRAYDEF,MOUNTS,ARRIDX) - Use structure of LABELMAP objects ARRIDX for labeling of 
 %   array elements. ARRIDX is expected to have fields ('i' and 's') or 'is', for inverter, string,
 %   or inverter-string labels. 
-% and optionally use figure H instead of the default figure-handle.
-
-    opt.fh = [];
+%
+%     'fh',ax
+%     opt.equator = 'up';
+%     opt.maxdetail = 3;
+%     opt.fontsize = [10,7];
+%     opt.labeling = []; % based on opt.maxlabels
+%     opt.maxlabels = 1000;
+%     opt.flip = false;
+    
+    opt.ax = [];
     opt.equator = 'up';
     opt.maxdetail = 3;
     opt.fontsize = [10,7];
@@ -44,11 +51,17 @@ function varargout = plotArrayDef(ArrayDef,Mounts,varargin)
     ConnTrck.border = polygon();
 	% writearraydefinition(ConnTrck,'arraydef.xlsx');
     
-    if isempty(opt.fh), opt.fh = GUIfigure('arraydef','Array Definition','big'); end
-    if nargout > 0, varargout{1} = opt.fh; end
-    
-	figure(opt.fh); clf;
-    set(gcf,'Name','Array Definition'); set(gcf,'Numbertitle','off');
+    if isempty(opt.ax), opt.ax = GUIfigure('arraydef','Array Definition','big'); end
+    validateattributes(opt.ax,{'matlab.graphics.axis.Axes','matlab.ui.Figure'},{'scalar'});
+    assert(ishandle(opt.ax),'Handle to deleted axes');
+    if isa(opt.ax,'matlab.ui.Figure')
+        figure(opt.ax); clf(opt.ax);
+        set(opt.ax,'Name','Array Definition'); set(opt.ax,'Numbertitle','off');
+        opt.ax = axes(opt.ax);
+    end   
+    if nargout > 0, varargout{1} = opt.ax; end
+    axes(opt.ax);
+
     switch lower(opt.equator)
         case {'up','+y'}
         case {'down','-y'}
@@ -115,14 +128,15 @@ function varargout = plotArrayDef(ArrayDef,Mounts,varargin)
         %set(p,'EdgeAlpha',1);
     end
         
-    % % Print
+    % Print
     % view(180,90)
     % rez = 600; 
-    % figpos = getpixelposition(opt.fh);
+    % fh = gcf;
+    % figpos = getpixelposition(fh);
     % resolution = get(0,'ScreenPixelsPerInch');
-    % set(opt.fh,'paperunits','inches','papersize',figpos(3:4)/resolution);...
-    % set(opt.fh,'paperposition',[0 0 figpos(3:4)/resolution]);
-    % print(opt.fh,'arrdef.png','-dpng',['-r',num2str(rez)],'-opengl')
+    % set(fh,'paperunits','inches','papersize',figpos(3:4)/resolution);...
+    % set(fh,'paperposition',[0 0 figpos(3:4)/resolution]);
+    % print(fh,'arrdef_custom.png','-dpng',['-r',num2str(rez)],'-opengl')
 end
 
 function Q = flatrotation(R)

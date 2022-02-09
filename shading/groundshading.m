@@ -1,39 +1,51 @@
-function [shfcn,Gnd,VV,P,w] = groundshading(Trck,sunvec,Vfcn,varargin)
-% [SHFCN,GND,VV,P,W] = GROUNDSHADING(TRCK,SUNVEC,VFCN) - Estimate the effect of direct shading 
+function [shfcn,Gnd,VV,P,K] = groundshading(Trck,sunvec,Vfcn,varargin)
+% [SHFCN,GND,VV,P,K] = GROUNDSHADING(TRCK,SUNVEC,VFCN) - Estimate the effect of direct shading 
 %   cast over ground triangulation GND estimated for layout TRCK, given solar positions SUNVEC 
 %   and plant geometry VFCN as returned by PLANTLAYOUT:
 %
 %         % given solar position vectors sunaz, sunel...
 %         [F,VFCN,SUNVEC] = PLANTLAYOUT(TRCK,sunaz,sunel,..);
-%         [SHFCN,GND,VV,P,W] = GROUNDSHADING(TRCK,SUNVEC,VFCN);
+%         [SHFCN,GND,VV,P,K] = GROUNDSHADING(TRCK,SUNVEC,VFCN);
 %         for t = 1:numel(sunel)
 %             ...
-%             % get shading of triangles GND and vertices SVTX at timestep t:
-%             [STRI,SVTX] = SHFCN(t);
+%             % get shading of triangles GND and vertices VV at timestep t:
+%             [SGND,BGND,SVV,BVV] = SHFCN(t);
 %             ...
+%             N = GND.faceNormal;
+%             for each q (analysis_points) and R (view-point rotation)
+%                
+%                 W = GndVV_weights(GND,VV,P,N,q,R,PRJ,REG)
+%                 REG_B = BVV'*W;
+%                 REG_S = (SVV.*BVV)*'*W;
+%             end
 %         end
 %
-%  [GND,VV,P,W] are the outputs of APPROXGROUNDMESH(TRCK). GND is a rough triangulation based on
+%  [GND,VV,P,K] are the outputs of APPROXGROUNDMESH(TRCK). GND is a rough triangulation based on
 %       the TRCK. The set of vertices VV make a finer subdivision of GND (see FINEMESHPOINTS).
 %       Each triangle GND(k,:) is 'sampled' at vertices VV(P(k,:),:).
 %
-%  Function handle SHFCN returns approximate ground "shading factors" [STRI,SVTX] = SHFCN(t) for
-%  each triangle GND and vertex VV, at timestep t. 
-%   STRI(k), SVTX(j) = 0 means no shading, i.e. incident direct irradiance over triangle k / 
+%  Function handle SHFCN returns approximate ground "shading factors" SGND, SVV and incidence angle
+%  factors BGND, BVV for each triangle GND and vertex VV, at timestep t:
+%
+%   [SGND,BGND,SVV,BVV] = SHFCN(t)
+%
+%   SGND(k), SVV(j) = 0 means no shading, i.e. incident direct irradiance over triangle k / 
 %       vertex j is BHI = BNI·sind(sunel(t)).
-%   STRI(k), SVTX(j) = 1 means full shading, i.e. no incident direct irradiance.
-%   STRI(k), SVTX(j) < 0 is possible (!!!) when triangle GND(k,:), or one or more of the triangles
-%       attached to VV(j,:) are tilted towards the sun SUNVEC(t,:). It just means the incident
-%       direct irradiance on that point is higher than expected for a horizontal plane.
+%   SGND(k), SVV(j) = 1 means full shading, i.e. no incident direct irradiance.
+%
+%       NOTE! SimOptions.groundshadeangle sets a threshold (minimum angle) for which shading is 
+%       actually calculated, for solar elevation angles below that threshold, all SGND and SVV 
+%       are set to 1.
+%
+%   BGND(k) is the cosine of the solar incident angle on facet GND(k,:), i.e. the dot product of
+%       the sun vector and the surface normal.
+%   BVV(j) is an average of BGND(k) for all facets k that share vertex j.
 %
 %  The algorithm is as follows:
 %       1. Project layout VFCN(t) onto GND
-%       2. Let each SVTX(j) = 1 if vertex VV(j,:) is shaded by any projected polygon
-%       3. Estimate each STRI(k) as the weighted average of SVTX(p) forall vertices VV(p,:) within
-%          (or on the edge of) triangle GND(k). STRI(k) = SVTX(P(k,:))·W.
-%       4. Apply correction factors due to surface tilt: ~ max(0,n·s)/max(0.05,s(3)), where n is
-%          the surface normal of each triangle, and s the sun vector at t. Correction factors for
-%          vertices are taken as the average of those for all connecting triangles.
+%       2. Let each SVV(j) = 1 if vertex VV(j,:) is shaded by any projected polygon
+%       3. Estimate each SGND(k) as the weighted average of SVV(p) forall vertices VV(p,:) within
+%          (or on the edge of) triangle GND(k). SGND(k) = SVV(P(k,:))·K.
 %
 % NOTES: (TODO) there is no self-intersection! elevations or obstacles (even if included in the 
 %               mesh) will not cast shadows onto the mesh itself.
@@ -42,9 +54,9 @@ function [shfcn,Gnd,VV,P,w] = groundshading(Trck,sunvec,Vfcn,varargin)
 %        however, not only the relative importance of ground shading is questionable, but the
 %        underlying lambertian albedo assumption most likely breaks down.
 %        For these reasons there is a critical angle (SIMOPTIONS.GROUNDSHADEANGLE) below which
-%        shading calculation is skipped altogether, and all STRI(k), SVTX(j) are set to 1.
+%        shading calculation is skipped altogether, and all SGND(k), SVV(j) are set to 1.
 %
-% See also: PLANTLAYOUT, PLOTTRACKERARRAY, SHADINGANALYSIS
+% See also: PLANTLAYOUT, PLOTTRACKERARRAY, SHADINGANALYSIS, GNDVV_WEIGHTS
 
     narginchk(3,Inf);
     DARK = getSimOption('groundshadeangle');
@@ -83,10 +95,10 @@ function [shfcn,Gnd,VV,P,w] = groundshading(Trck,sunvec,Vfcn,varargin)
     Tp = repmat(Tp,Ntr,1) + repelem(size(v0,1)*(0:Ntr-1)',size(Tp,1),1);
     
     if nargin == 7 && isa(varargin{1},'triangulation')
-        [Gnd,VV,P,w] = deal(varargin{4:7});
+        [Gnd,VV,P,K] = deal(varargin{4:7});
     else
         % Get rough ground mesh, and a finer set of vertices VV , for ground shading
-        [Gnd,VV,P,w] = approxgroundmesh(Trck,varargin{:});
+        [Gnd,VV,P,K] = approxgroundmesh(Trck,varargin{:});
     end
 
     normals = Gnd.faceNormal;
@@ -129,6 +141,6 @@ function [shfcn,Gnd,VV,P,w] = groundshading(Trck,sunvec,Vfcn,varargin)
         % ... but evaluate shading of each triangle on finer VV
         T = triangulation(Tp,Vp(:,1:2));
         vtxshade = ~isnan(T.pointLocation(double(VV(:,1:2))));
-        trishade = vtxshade(P)*w';
+        trishade = vtxshade(P)*K';
     end
 end

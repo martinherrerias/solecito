@@ -75,9 +75,9 @@ function GUIarrdef(~,~)
         else
             fprintf('\tPlotting Array Definition...\n');
             setflag('arrdef',-3,{flagmsg{1},'Plotting Array Definition...'});
-            fh = plotArrayDef(ArrayDef,Trck,ArrIdx);
+            ax = plotArrayDef(ArrayDef,Trck,ArrIdx);
             fprintf('\b\b\b\b: complete\n');
-            if getSimOption('exportplots'), exportfigure('arraydef',fh); end
+            if getSimOption('exportplots'), exportfigure('arraydef',ax.Parent); end
         end
     end
 

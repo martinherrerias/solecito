@@ -806,10 +806,9 @@ classdef polygon
             if numel(P) > 1 && any([P.hole])
             % if there are holes, use Constrained Delaunay triangulation to find a set of
             % triangles that represent the actual 'filled' area...
-            
-                % warning_reseter = naptime();  %#ok<NASGU>
-                % warning('off','all');
 
+                warning_reseter = naptime({'MATLAB:delaunayTriangulation:ConsConsSplitWarnId',... 
+                                           'MATLAB:delaunayTriangulation:DupConsWarnId'}); %#ok<NASGU>
                 if ~isa(P,'polygon3d')
                 % If there are self-intersections, the number of vertices can change, hence the use
                 % a different variable VT.
