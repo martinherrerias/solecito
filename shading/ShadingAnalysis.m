@@ -703,12 +703,12 @@ for t = t0:Nt
                 W = GndVV_W0{tr};
             end
 
-            DwF_albedo = unpackU16(DwF(tr).albedo(t,:));
+            DwF_albedo = unpackU16(DwF(tr).albedo(t_or_1,:));
             DwF(tr).gndbeam(t,:) = packU16((Gnd_brightness'*W).*DwF_albedo);
             
             % assume any areas not "assigned" are flat unshaded ground
             f = ~any(W,1) & visible_gnd;
-            DwF(tr).gndbeam(t,f) = packU16(max(0,s(3).*DwF_albedo));
+            DwF(tr).gndbeam(t,f) = packU16(max(0,s(3).*DwF_albedo(f)));
         end
         simtimer.add2lap('ground');
 
@@ -797,7 +797,7 @@ for t = t0:Nt
                     W = GndVV_W{tr,pt};
                 end
                 
-                DwF_albedo = unpackU16(DshF(tr,pt).albedo(t,:));
+                DwF_albedo = unpackU16(DshF(tr,pt).albedo(t_or_1,:));
                 DshF(tr,pt).gndbeam(t,:) = packU16((Gnd_shading'*W).*DwF_albedo);
                 
                 f = ~any(W,1) & DwF(tr).gndbeam(t,:) > 0;

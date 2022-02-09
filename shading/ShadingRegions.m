@@ -1044,9 +1044,13 @@ methods
             F_ia(:,2:end) = diff(F_ia,1,2);
             F_ia = F_ia./SR.solidangles.solar;
             
-            F_sun = zeros(Gn*Gs,SR.n.solar);
-            F_sun(simple,:) = Wia*F_ia;
-            F_sun = reshape(F_sun,Gn,Gs,SR.n.solar); % [Gn Gs Ncs]
+            if any(simple)
+                F_sun = zeros(Gn*Gs,SR.n.solar);
+                F_sun(simple,:) = Wia*F_ia;
+                F_sun = reshape(F_sun,Gn,Gs,SR.n.solar); % [Gn Gs Ncs]
+            else
+                F_sun = zeros(Gn,Gs,SR.n.solar);
+            end
 
             if any(tricky,'all')
                 % C. Do step-by-step projection for tricky cases

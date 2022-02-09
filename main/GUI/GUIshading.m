@@ -140,7 +140,7 @@ function [ShRes,msg] = lookforprevious(Trck,SR)
     [wd,~,ext] = fileparts(fmt{1});
     fmt(3:4) = strrep(fmt,ext,[ext '~']);
     if ~isequal(wd,pwd())
-       fmt(5:6) = strrep(fmt,wd,'.');
+       fmt(5:8) = strrep(fmt,wd,'.');
     end
     candidates = cellfun(@dir,fmt,'unif',0);
     candidates = uniquecell(cat(1,candidates{:}));
