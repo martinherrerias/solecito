@@ -3,6 +3,15 @@ function testjigsaw(verbosity)
 
     if nargin < 1, verbosity = -1; end
 
+    jexename = fileparts(mfilename('fullpath'));
+    if ispc()
+        jexename = [jexename,'\jigsaw-matlab\external\jigsaw\bin\jigsaw.exe'];
+    else
+        jexename = [jexename,'/jigsaw-matlab/external/jigsaw/bin/jigsaw'];
+    end
+    assert(isfile(jexename), ['JIGSAW''s executable not found -- ', ...
+        'See jigsaw-matlab/compile.m for additional detail.']);
+    
     blob = polygon(sort(rand(10,1))*360,movmean(rand(10,1),2),'pol');
     blob.x = blob.x*100+100;
     blob.y = blob.y*100+100;
@@ -21,7 +30,8 @@ function testjigsaw(verbosity)
     
     % hfun = @(x,y) 1 - 0.8*exp(-((x-c(1)).^2 + (y-c(2)).^2)/5000) ;
     
-    [V,T] = cleantrisurf([x,y,z],T,0.1,10,0.02,0.02,'verbosity',verbosity);
+    [V,T] = cleantrisurf([x,y,z],T,...
+        'hfun_hmin',0.1,'hfun_hmax',10,'verbosity',verbosity); % 'mesh_eps1',0.02,'mesh_eps2',0.02,
     
     if verbosity >= 0
         GUIfigure('jigsaw','Jigsaw test','2:1'); clf(); hold on;
