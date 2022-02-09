@@ -26,9 +26,7 @@
             if nargin < 3, invlimits = [0 Inf 0 Inf]; end
             
             % Initialize base plotter object (it will call this class's drawplotter/drawwaitbar)
-            obj@plotter(plotting,...
-                {0,'Initializing...','Name','Electrical Solver'},...
-                {trckoutline,invlimits});
+            obj@plotter(plotting,'Electrical Solver',0,'Initializing...',{trckoutline,invlimits});
  
             if ~obj.plotting
             % Try to set sub-plot axis-limits, obj.trckoutline and obj.inverterwindow

@@ -180,7 +180,7 @@ function ShRes = ShadingAnalysis(varargin)
     UINT16MAX = 2^16-1;
     packU16 = @(x) uint16(x*UINT16MAX);
     U16tol = packU16(options.RelTol);
-    % unpackU16 = @(x) double(x)/UINT16MAX;
+    unpackU16 = @(x) double(x)/UINT16MAX;
     
     % Create a (packed) copy of Trackers.geom, with tighter fits to pv-active-surfaces
     trckgeom = copy(Trackers.geom);
@@ -624,8 +624,10 @@ for t = t0:Nt
             PjReg0(tr).solar = projectsolar(rShReg,IAMprj,s,Rpov')';
             PjReg0(tr).solar = cellfun(@pack16,PjReg0(tr).solar,'unif',0);
             % PjReg0(tr).solar = cellfun(@(p) polyclip(p,PjReg0(tr).horizon,'i'),PjReg0(tr).solar,'unif',0);
-            DwF(tr).solar(t,:) = packU16(cellfun(...
-                @polygon.packedarea,PjReg0(tr).solar)./rShReg.solidangles.solar);    
+            
+            cs_areas = cellfun(@polygon.packedarea,PjReg0(tr).solar);
+            cs_areas(:,2:end) = diff(cs_areas,1); % ring areas
+            DwF(tr).solar(t,:) = packU16(cs_areas./rShReg.solidangles.solar);    
             visible_cs = DwF(tr).solar(t,:) >= U16tol;
             DwF(tr).solar(t,~visible_cs) = 0;
             PjReg0(tr).solar(~visible_cs) = {struct.empty};
@@ -675,8 +677,11 @@ for t = t0:Nt
             end
             PjReg0(tr).solar = cellfun(@(p) ...
                 polyclip(p,PjReg0(tr).horizon,'i'),PjReg0(tr).solar,'unif',0);
-            DwF_cs_near = packU16(...
-                cellfun(@polygon.packedarea,PjReg0(tr).solar)./ShRegions.solidangles.solar);
+            
+            cs_areas = cellfun(@polygon.packedarea,PjReg0(tr).solar);
+            cs_areas(:,2:end) = diff(cs_areas,1); % ring areas
+            DwF_cs_near = packU16(cs_areas./rShReg.solidangles.solar); 
+            
             visible_cs = DwF_cs_near >= U16tol;
             PjReg0(tr).solar(~visible_cs) = {struct.empty};
             % DwF(tr).solar(t,~visible_cs) = 0;
@@ -698,11 +703,12 @@ for t = t0:Nt
                 W = GndVV_W0{tr};
             end
 
-            DwF(tr).gndbeam(t,:) = packU16(Gnd_brightness'*W);
+            DwF_albedo = unpackU16(DwF(tr).albedo(t,:));
+            DwF(tr).gndbeam(t,:) = packU16((Gnd_brightness'*W).*DwF_albedo);
             
             % assume any areas not "assigned" are flat unshaded ground
             f = ~any(W,1) & visible_gnd;
-            DwF(tr).gndbeam(t,f) = packU16(max(0,s(3)));
+            DwF(tr).gndbeam(t,f) = packU16(max(0,s(3).*DwF_albedo));
         end
         simtimer.add2lap('ground');
 
@@ -775,8 +781,9 @@ for t = t0:Nt
             visible_cs = DwF(tr).solar(t,:) >= U16tol;
             if any(visible_cs)
                 pjreg.solar(visible_cs) = cellfun(@(p) polyclip(p,PjObstacles,'d'),pjreg.solar(visible_cs),'unif',0);
-                f = cellfun(@polygon.packedarea,pjreg.solar(visible_cs))./rShReg.solidangles.solar(visible_cs);
-                DshF(tr,pt).solar(t,visible_cs) = packU16(f);
+                cs_areas = cellfun(@polygon.packedarea,pjreg.solar);
+                cs_areas(:,2:end) = diff(cs_areas,1); % ring areas
+                DshF(tr,pt).solar(t,:) = packU16(cs_areas./rShReg.solidangles.solar); 
                 visible_cs = visible_cs & DshF(tr,pt).solar(t,visible_cs) >= U16tol;
                 pjreg.solar(~visible_cs) = {struct.empty};
             end
@@ -789,10 +796,13 @@ for t = t0:Nt
                 else
                     W = GndVV_W{tr,pt};
                 end
-                DshF(tr,pt).gndbeam(t,:) = packU16(Gnd_shading'*W);
+                
+                DwF_albedo = unpackU16(DshF(tr,pt).albedo(t,:));
+                DshF(tr,pt).gndbeam(t,:) = packU16((Gnd_shading'*W).*DwF_albedo);
                 
                 f = ~any(W,1) & DwF(tr).gndbeam(t,:) > 0;
                 DshF(tr,pt).gndbeam(t,f) = DwF(tr).gndbeam(t,f);
+                
             end
 
             % Plot projections

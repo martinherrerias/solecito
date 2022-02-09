@@ -583,10 +583,8 @@ methods
         
         % Minimum z of visible (i.e. projected) point, for each rotation R
         b = acos(R(3,3,:)) + acos(PolyPrj.cX);
-        if b > pi
-            minprjz = -1;
-        else
-            minprjz = cos(b); % [1 1 Nr]
+        if b > pi, minprjz = -1;
+        else, minprjz = cos(b); % [1 1 Nr]
         end
         
         % clipped(i,j,k) - CS disc i might be clipped at sun-position j for rotation k
@@ -985,6 +983,8 @@ methods
         
         sky = permute(sky,[1,3,2]);
         gnd = permute(gnd,[1,3,2]);
+        sky = max(0,sky);
+        gnd = max(0,gnd);
         
         % Circumsolar regions
         if ~isempty(SR.cs) && nargout > 2
@@ -1016,9 +1016,9 @@ methods
             
             cosIA = n0*s0'; % [Gn Gs] array, cosine of incidence angle
             if isempty(horizon), maxhz = 0; else, maxhz = max(horizon.z); end
-
+        
             % Horizon is visible: min. visible (i.e. projected) z < maxhz, for each normal n0
-            vishz = cos(acos(n0(:,3)) + acos(prj.cX)) <  maxhz;
+            vishz = min(pi,acos(n0(:,3)) + acos(prj.cX)) >  acos(maxhz);
             
             % clipped(i,j,k) - CS disc i might be clipped at sun-position j for rotation k
             visible = acosd(cosIA)-shiftdim(SR.cs,-1) < acosd(prj.cX);     % [Gn Gs Ncs]
@@ -1048,7 +1048,7 @@ methods
             F_sun(simple,:) = Wia*F_ia;
             F_sun = reshape(F_sun,Gn,Gs,SR.n.solar); % [Gn Gs Ncs]
 
-            if any(tricky)
+            if any(tricky,'all')
                 % C. Do step-by-step projection for tricky cases
                 printif('...Special-cases (%d prj)',nnz(tricky));
                 for j = find(any(tricky,2)')
@@ -1074,6 +1074,7 @@ methods
             end
             sun = reshape(sun,Nt,Nm,SR.n.solar);
             sun = permute(sun,[1,3,2]);
+            sun = max(0,sun);
 
             % cosIA = shiftdim(s(1,:,:).*n(1,:,:)+s(2,:,:).*n(2,:,:)+s(3,:,:).*n(3,:,:),1);
             % elev = repmat(atan2d(s(3,:),rssq(s(1:2,:),1)),Nm,1)';

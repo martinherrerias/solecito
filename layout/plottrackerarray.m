@@ -29,7 +29,7 @@ function varargout = plottrackerarray(Trck,varargin)
 %     TRCK.axisoffset - vector from center of rotation to center of tracker, in TCS ([0;0;0])
 %     TRCK.analysedtrackers - vector of Nat indices for trackers under analysis. (1:Ntr if omitted)
 %
-% See also: SAMPLETRACKERS, APPROXGROUNDMESH, MOUNTROTATIONS
+% See also: SAMPLETRACKERS, APPROXGROUNDMESH, MOUNTROTATIONS, PLANTLAYOUT
 
     COLORS.sun = [1 0.8 0];
     COLORS.active = [0.3,0.3,0.8,1];

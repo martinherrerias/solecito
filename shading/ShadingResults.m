@@ -400,8 +400,8 @@ methods
 
         function x = unpackstruct(x)
             for k = 1:numel(x)
-                for f = fieldnames(x)
-                    x(k).(f{1}) = single(x(k).(f{1}))/UINT16MAX;
+                for f = fieldnames(x)'
+                    x(k).(f{:}) = single(x(k).(f{:}))/UINT16MAX;
                 end
             end
         end

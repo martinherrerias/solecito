@@ -183,7 +183,7 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
 
             F = @(g,t,v) celltempUvalues(g,t,v,C,eff,TOL_TEMP/4);
             [~,~,F] = fitinterpolant(F,{ge,ta,vw},TOL_TEMP);
-            ctf = @(g,t,v) F(double(g),double(t),double(v));
+            ctf = @(g,t,v) F(g,t,v);
             ctf0 = @(g,t,v) celltempUvalues(g,t,v,C,0);
         case 'SAPM'
             ctf = @(Ge,Ta,Vw) Ta + Ge.*exp(C.a_wind+C.b_wind*Vw) + C.delT*(Ge./1000);

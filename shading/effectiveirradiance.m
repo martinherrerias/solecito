@@ -66,7 +66,7 @@ function [POA,EB]= effectiveirradiance(POA,MD,Trck,pvModType)
     if nargin < 4, pvModType = ''; end
     
     parsestruct(Trck,{'analysedpoints'},'-n','-r','size',[2,NaN])
-    parsestruct(Trck,{'geom'},'class','pvArea',@(x) x,depth == 4);    
+    parsestruct(Trck,{'geom'},'class','pvArea',@(x) x.depth == 4);    
     parsestruct(MD,{'GHI','DHI'},'opt',{'AMa','tpw'},'-n','-r','-v','-e');
     
     [Nm,Nb,~] = Trck.geom.getdims();    % module positions, cell-blocks per module 

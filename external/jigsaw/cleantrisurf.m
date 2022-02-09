@@ -82,7 +82,7 @@ function [V,T] = cleantrisurf(V,T,varargin)
     % geom.radii = [1,1,1];
 
     name = 'cleantrisurf';
-    opts.geom_file = fullfile(rootpath,'files',[name,'.msh']) ; % domain file
+    opts.geom_file = fullfile(rootpath,'cache',[name,'.msh']) ; % domain file
     opts.jcfg_file = fullfile(rootpath,'cache',[name,'.jig']) ; % config file
     opts.mesh_file = fullfile(rootpath,'cache',[name,'.msh']) ; % output file
     

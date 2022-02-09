@@ -175,12 +175,13 @@ function SolRes = pvArraySolver(varargin)
     if isa(ShRes,'ShadingResults')
     % ... keep only beam-shading-related indices & polygons
         ShRes = struct(ShRes,'except',{'info','worldgeom','BshF','Nsb','DwF0','DshF','DwF'});
+    else
+        parsestruct(ShRes,{'fullshaded','partshaded'},'-l','size',[Nt,Nu]);
+        parsestruct(ShRes,{'partidx'},'-i','size',[Nt,Nu]);
+        % parsestruct(ShRes,{'BLPidx','BLPoly','mountgeom'});
+        assert(issparse(ShRes.BLPidx) && size(ShRes.BLPidx,1) == nnz(ShRes.partshaded) && ...
+            size(ShRes.BLPidx,2) == numel(ShRes.BLPoly),'Bad polyon indices/shading-polygons');
     end
-    parsestruct(ShRes,{'fullshaded','partshaded'},'-l','size',[Nt,Nu]);
-    parsestruct(ShRes,{'partidx'},'-i','size',[Nt,Nu]);
-    parsestruct(ShRes,{'BLPidx','BLPoly','mountgeom'});
-    assert(issparse(ShRes.BLPidx) && size(ShRes.BLPidx,1) == nnz(ShRes.partshaded) && ...
-        size(ShRes.BLPidx,2) == numel(ShRes.BLPoly),'Bad polyon indices/shading-polygons');
 
     % ... parse mount-geometry, while initializing cell-shading-calculation function
     [~,Nepm,Ncpe] = CellShadingFactors(ShRes.mountgeom,Np);

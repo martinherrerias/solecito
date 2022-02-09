@@ -99,8 +99,8 @@ function [POA,ShR] = poairradiance(MD,SP,Trck,horizon,ShR,varargin)
         return;
     end
     
-    % Unit Vectors pointing towards the sun
-    s = sph2cartV(SP.Az,SP.El)'; %[3,Nt]
+    % Unit Vectors pointing towards the sun (project coords. X = 0, Y = 90)
+    s = sph2cartV(90 - SP.Az - Trck.rotation,SP.El)'; %[3,Nt]
     
     if ~isempty(ShR)
     % Parse, [interpolate] and unpack shading results
@@ -168,9 +168,10 @@ function [POA,ShR] = poairradiance(MD,SP,Trck,horizon,ShR,varargin)
     POA.Bpoa0 = single(MD.BNI.*CIA);
     
     % Estimate circumsolar component according to Perez
-    b = max(0.087,sind(SP.El));
-    POA.CS = pvlmod_perezcoeffs(MD.BNI,MD.DHI,MD.ENI,SP.El).*MD.DHI.*CIA./b; % F1·DHI·a/b
-    
+    b = max(0.087,s(3,:)');
+    F1 = pvlmod_perezcoeffs(MD.BNI,MD.DHI,MD.ENI,SP.El);
+    POA.CS = F1.*MD.DHI.*CIA./b; % F1·DHI·a/b
+
     IAM = opt.fiam(acosd(CIA));
     if isempty(ShR) && all(IAM(CIA > 0) == 1)
        POA.Bpoa_IAM = POA.Bpoa0;
@@ -188,7 +189,16 @@ function [POA,ShR] = poairradiance(MD,SP,Trck,horizon,ShR,varargin)
         POA.Dpoa_IAM = applyviewfactors(F,D,A0);
     else
     % Shaded & not-shaded, IAM projection
+    
+        if isfield(S.DwF,'gndbeam')
+            rd = min(1,max(0.1,(1-F1).*MD.DHI./MD.GHI));
+            D.gndbeam = D.albedo.*(1-rd)./b;
+            D.albedo = D.albedo.*rd;
+            A0.gndbeam = A0.albedo;
+        end
+    %%
         POA.Dpoa_IAM = applyviewfactors(S.DwF,D,A0);
+        %%
         [POA.Dpoa,~,~,CS] = applyviewfactors(S.DshF,D,A0);
         
         if any(CS > 0,'all')
