@@ -1,5 +1,5 @@
 # PV4K-matlab
-Simulate PV plants with so much detail that you can see their pores.
+Simulate PV plants with so much detail that you can see their pores ... hot-spots?
 
 Capdevila, H., Herrerias A., M., Marola, A., 2014. Anisotropic Diffuse Shading Model for Sun-tracking Photovoltaic Systems. Energy Procedia, 2013 ISES Solar World Congress 57, 144–151. https://doi.org/10.1016/j.egypro.2014.10.018
 Capdevila, H., Marola, A., Herrerias A., M., 2013. High resolution shading modeling and performance simulation of sun-tracking photovoltaic systems. 9th International Conference on Concentrator Photovoltaic Syste,s: CPV-9, Miyazaki, Japan, pp. 201–204. https://doi.org/10.1063/1.4822231
@@ -9,6 +9,9 @@ Zhou, H., Niethammer, C., Herrerias A., M., 2021. Usage Experiences of Performan
 
 
 ## Use
+
+#### 0. Try running the `startup.m` function from Matlab. It should add all the required folders to the path, and compile all libraries. If it worked, congratulations! jump to step 4... otherwise grab a coffee, and go to step 1.
+
 #### 1. Clone the repository (*with submodules!*):
 
 `git clone --recurse-submodules git@github.com:martinherrerias/PV4K-matlab.git`
