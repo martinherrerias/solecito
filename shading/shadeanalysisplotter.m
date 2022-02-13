@@ -33,7 +33,7 @@ classdef shadeanalysisplotter < plotter
             
             if nargin < 6 || any(cellfun(@isempty,varargin))
                assert(~plotting,'Plotting-enabled object requires full constructor call');
-               setbtn(obj,[],'Enable','off')
+               if obj.isUI, setbtn(obj,[],'Enable','off');end
             end
             varargin(end+1:5) = {[]};
             [obj.Mounts,obj.sunaz,obj.sunel,obj.Gnd,opt] = deal(varargin{:});

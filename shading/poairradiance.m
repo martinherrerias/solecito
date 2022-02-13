@@ -190,15 +190,18 @@ function [POA,ShR] = poairradiance(MD,SP,Trck,horizon,ShR,varargin)
     else
     % Shaded & not-shaded, IAM projection
     
-        if isfield(S.DwF,'gndbeam')
+        if isfield(S.DwF,'gndbeam') && ~isempty(S.DwF(1).gndbeam)
             rd = min(1,max(0.1,(1-F1).*MD.DHI./MD.GHI));
             D.gndbeam = D.albedo.*(1-rd)./b;
             D.albedo = D.albedo.*rd;
             A0.gndbeam = A0.albedo;
+        else
+            S.DwF = rmfield(S.DwF,'gndbeam');
+            S.DshF = rmfield(S.DshF,'gndbeam');
         end
-    %%
+    
         POA.Dpoa_IAM = applyviewfactors(S.DwF,D,A0);
-        %%
+        
         [POA.Dpoa,~,~,CS] = applyviewfactors(S.DshF,D,A0);
         
         if any(CS > 0,'all')
