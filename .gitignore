@@ -1,0 +1,10 @@
+*.asv
+*.m~
+*.mat~
+*.bak
+*.o
+*.mexa64
+config.ini*
+config-*.ini
+tmp/*
+Remote/useraccounts.m

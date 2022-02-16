@@ -5,7 +5,7 @@ if nargin < 1, try_to_compile = false; end
 
 BASEDIR = fileparts(mfilename('fullpath'));
 HERE = pwd();
-laswill = onCleanup(@() cd(HERE));
+lastwill = onCleanup(@() cd(HERE));
 
 cd(BASEDIR);
 addpath(genpath('.'));
@@ -74,3 +74,5 @@ catch
     end
 end
 endjigsaw();
+
+end
