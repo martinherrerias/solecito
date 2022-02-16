@@ -510,7 +510,7 @@ methods
     %       breakpoints, default is eps(0) - actually adjusted to eps(x,y) by mkivpp 
     %
     % See also: ADDSERIES, MDPWL.MDPWL, SCALE, MPP
-
+    
         assert(isa(P,'mdpwl') && ~isempty(P) && ~any(isvoid(P),'all'),...
             'Expecting 2+ vector of non-empty MDPWL objects');
         
@@ -536,8 +536,16 @@ methods
         if isvector(P) && size(P,2) > 1, W = W'; end
         XY = arrayfun(@(p,w) [p.x,w*p.y],P(uidx),W,'unif',0);
         
-        % Call MEX function, and wrap again into MDPWL object
-        [xx,yy,sz] = mexaddparallel(M,XY{:},tol,Lim);
+        % FIX! --- MEX function only works from home... COVID issues
+        here = pwd();
+        cd(fileparts(which('mexaddparallel')));
+        
+            % Call MEX function, and wrap again into MDPWL object
+            [xx,yy,sz] = mexaddparallel(M,XY{:},tol,Lim);
+            
+        cd(here); 
+        %  ---
+        
         S = mdpwl(xx(1:sz)', yy(1:sz)',0);
     end
     
@@ -587,8 +595,16 @@ methods
         if isvector(P) && size(P,2) > 1, W = W'; end
         XY = arrayfun(@(p,w) [w*p.x,p.y],P(uidx),W,'unif',0);
         
-        % Call MEX function, and wrap again into MDPWL object
-        [xx,yy,sz] = mexaddseries(M,XY{:},tol,Lim);
+        % FIX! --- MEX function only works from home... COVID issues
+        here = pwd();
+        cd(fileparts(which('mexaddseries')));
+        
+            % Call MEX function, and wrap again into MDPWL object
+            [xx,yy,sz] = mexaddseries(M,XY{:},tol,Lim);
+            
+        cd(here); 
+        %  ---
+
         S = mdpwl(xx(1:sz)', yy(1:sz)',0);
     end
 
