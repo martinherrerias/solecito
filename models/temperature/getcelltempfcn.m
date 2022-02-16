@@ -21,6 +21,14 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
 %     S.NOCT = 44;       % Cell Temperature at NOC (°C)
 %     S.Uwind = 0.0;   
 %     S.absort = 0.9;
+% 
+%     S.model = 'mattei';  % Faiman model with Uconst adjusted to NOCT
+%     S.Uconst = 24.1;     % Intercept of heat transfer coefficient [W/m²K]
+%     S.Uwind = 2.9;       % Slope of heat transfer coefficient [(W/m²K)/(m/s)]
+%     S.absort = 0.81;	   % tau·alpha - Absortivity x IR Emissivity of module    
+%     S.eta_ref = 0.16;    % efficiency at STC
+%     S.beta = 0.004;      % Pmp temperature derate factor [1/K] (-muPmp in ODM)
+%     S.gamma = 0.0;       % Pmp irradiance log. derate factor (typ. 0 - 0.12)
 %
 %   For the Faiman model (see below) a module efficiency function EFF(g,t) is required. If S is 
 %   an ODM-parameter structure, however, the function can be generated internally as:
@@ -37,6 +45,9 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
 %       3535, Sandia National Laboratories, Albuquerque, NM
 %   [2] D. Faiman, "Assessing the outdoor operating temperature of photovoltaic modules,"
 %       Progress in Photovoltaics: Research and Applications, vol. 16, no. 4, pp. 307–315, 2008.
+%   [3] Mattei, M., Notton, G., Cristofari, C., Muselli, M., Poggi, P., 2006. Calculation   
+%       of the polycrystalline PV module temperature using a simple method of energy balance. 
+%       Renewable Energy 31, 553–567. https://doi.org/10.1016/j.renene.2005.03.010
 %
 % See also: PVL_SAPMCELLTEMP, CELLTEMPUVALUES 
 
@@ -46,7 +57,7 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
     TOL_TEMP = RELTOL*100;
     
     KFIELDS = {'model','Uconst','Uwind','absort','a_wind','b_wind','delT','isCPV','NOCT',...
-              'TempModel','parameters'};
+              'eta_ref','beta','gamma','TempModel','parameters'};
     
     % Copy only relevant fields
     if nargin < 1 || isempty(S), S = struct(); end
@@ -58,6 +69,7 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
        switch upper(C.model)
            case 'UVAL', f = {'Uconst','Uwind','absort'};
            case 'SAPM', f = {'a_wind','b_wind','delT'};
+           case 'MATTEI', f = {'Uconst','Uwind','absort','eta_ref','beta','gamma'};
        end
        missing = ~cellfun(@(x) isfield(C,x),f);
        if any(missing)
@@ -84,7 +96,7 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
     isdefault = all(cellfun(@(f) isdefault.(f),fieldnames(isdefault)));
     if nargin < 1 || isempty(C), C = DEF_MDL;
     else        
-         % Resolve possible conflicts between CellTemp from S and from SimOptions
+        % Resolve possible conflicts between CellTemp from S and from SimOptions
         fields = {'model','Uconst','Uwind','absort','a_wind','b_wind','delT'};
         fields = intersect(fields,fieldnames(DEF_MDL));
         if ~isdefault && ~all(cellfun(@(f) isequal(DEF_MDL.(f),C.(f)),fields))
@@ -104,7 +116,7 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
     assert(isfield(C,'model'),'Missing field ''model'' in (default?) structure.');
 
     % Get/check efficiency function (required for Faiman model)
-    if ~strcmpi(C.model,'SAPM') 
+    if strcmpi(C.model,'Uval') 
         try 
             if nargin < 2 || isempty(eff)
                 eff = @(g,t) onediodeMPP(translateODM(S,g,t),TOL_TEMP/4)./(S.area*g); 
@@ -170,6 +182,10 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
                 C.delT = SAPM_PAR(1).delT; 
                 warnassump('delT = %0.1f °C',C.delT); 
             end
+        case 'MATTEI'
+            C.model = 'Mattei';
+            [~,~,P] = celltemp_mattei(0,0,0);
+            C = completestruct(C,P,'warning','B>A');
         otherwise
             error('No valid Cell-Temp. model could be retrieved, either from SimOptions or ODM')
     end
@@ -188,6 +204,9 @@ function [ctf,ctf0,C] = getcelltempfcn(S,eff)
         case 'SAPM'
             ctf = @(Ge,Ta,Vw) Ta + Ge.*exp(C.a_wind+C.b_wind*Vw) + C.delT*(Ge./1000);
             ctf0 = ctf;
+        case 'Mattei'
+            ctf = @(Ge,Ta,Vw) celltemp_mattei(Ge,Ta,Vw,C.Uconst,C.Uwind,C.absort,C.eta_ref,C.beta,C.gamma);
+            ctf0 = @(Ge,Ta,Vw) celltemp_mattei(Ge,Ta,Vw,C.Uconst,C.Uwind,C.absort,0,0,0);
     end
 
     NOCT = ctf0(Gnoc,Tnoc,VWnoc);
@@ -213,6 +232,10 @@ function s = celltempmodelstr(C)
         case 'SAPM'
             s = sprintf('SAPM: a = %0.1f ln(K·m²/W), b = %0.1f ln(K·m·s/W), dT = %0.1f °C', ...
                 C.a_wind,C.b_wind,C.delT);
+        case 'Mattei'
+            s = sprintf(['Mattei: Uc = %0.1f W/m²K, Uw = %0.1f W·s/m³K, a = %0.2f, ', ...
+                         'eta_ref = %0.1f%%, beta = %0.2f%%/K, gamma = %0.2f'],...
+                C.Uconst,C.Uwind,C.absort,100*C.eta_ref,C.beta*100,C.gamma);
         otherwise
             keyboard();
     end

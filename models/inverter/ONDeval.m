@@ -74,7 +74,7 @@ function [Pout,Loss] = ONDeval(Inv,Pin,Vin,Ta)
     pout = inrange & (Pin > Inv.Pdc0);
     Loss.clip_p(pout) = Pin(pout)-Inv.Pdc0;
     
-    Pout(inrange) = Inv.fPV(Pin(inrange),Vin(inrange));
+    Pout(inrange) = Inv.fPV(double(Pin(inrange)),double(Vin(inrange)));
     Loss.eff(inrange) = Pin(inrange) - Pout(inrange);
     
     Pmax = Inv.TPLim(Ta);

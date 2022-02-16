@@ -269,7 +269,11 @@ function ODM = checkODM(ODM)
         parseset = @(S,set,conditions) parsestruct(S,intersect(set,requiredfields),...
             'opt',setdiff(set,requiredfields),conditions{:});
 
-        for fld = NONPOSITIVE, if isfield(S,fld{1}), S.(fld{1}) = -S.(fld{1}); end; end
+        for fld = NONPOSITIVE
+            if isfield(S,fld{1})
+                for j = 1:numel(S), S(j).(fld{1}) = -S(j).(fld{1}); end 
+            end
+        end
                 
         parseset(S,NUMERIC,{'numeric','real','scalar'});
         parseset(S,FINITE,{'numeric','finite'});
@@ -278,8 +282,6 @@ function ODM = checkODM(ODM)
         parseset(S,INTEGERS,{'numeric','integer'});
         parseset(S,BOOLEAN,{'class',{'numeric','logical'},'binary'});
         parseset(S,STRINGS,{'class',{'char','string'}});
-        
-        for fld = NONPOSITIVE, if isfield(S,fld{1}), S.(fld{1}) = -S.(fld{1}); end; end
     end
 end
 

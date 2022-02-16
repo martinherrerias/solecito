@@ -35,7 +35,7 @@ function Tc = celltempUvalues(Ge,Ta,vw,Mod,eff,Tol)
     if isstruct(Mod)
         assert(isfield(Mod,'Uconst'),'celltempUvalues:missingUconst','Missing field ''Uconst'' in parameters');
         if ~isfield(Mod,'absort'), Mod.absort = 0.9; end
-        if isfield(Mod,'Uwind'), Mod.Uwind = 0; end
+        if ~isfield(Mod,'Uwind'), Mod.Uwind = 0; end
         Mod = {Mod.Uconst,Mod.Uwind,Mod.absort};
     else
         assert(isvector(Mod) && numel(Mod) == 3, 'celltempUvalues:Mod','Expecting parameter structure or 3-vector');
@@ -45,7 +45,7 @@ function Tc = celltempUvalues(Ge,Ta,vw,Mod,eff,Tol)
 
     if ~isa(eff,'function_handle')
     % No iterative solution required
-       Tc = Ta + alfa*Ge.*(1-eff)./(uconst+uwind*vw);
+       Tc = Ta + Ge.*(alfa-eff)./(uconst+uwind*vw);
     else
         % Get maximum temperature at eff = 0, i.e. cell is not reverse-biased
         Tmax = Ta + alfa*Ge./(uconst+uwind*vw); 
@@ -54,13 +54,13 @@ function Tc = celltempUvalues(Ge,Ta,vw,Mod,eff,Tol)
         %badeff = false;
         warning_resetter = naptime('bisection:closedintervals'); %#ok<NASGU>
         
-        errf = @(t) Ta + alfa*Ge.*(1-effwrap(Ge,t))./(uconst+uwind*vw)-t;
+        errf = @(t) Ta + Ge.*(alfa-effwrap(Ge,t))./(uconst+uwind*vw)-t;
         Tc = bisection(errf,Ta,Tmax,Tol);
     end
     
     function eta = effwrap(g,t)
         eta = eff(g,t);
         eta(g <= 0) = 0;
-        assert(all(eta >= 0 & eta <= 1),'Bad efficiency function')
+        assert(all(eta >= 0 & eta <= 1,'all'),'Bad efficiency function')
     end
 end
