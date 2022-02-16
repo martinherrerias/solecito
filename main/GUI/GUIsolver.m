@@ -155,7 +155,7 @@ end
 
 function varargout = PVmain(varargin)
 % PVMAIN(MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter,[OPT,'name',val])
-% PVMAIN('backup',S) - attempt to resume interrupted calculation from backup structure S,
+% PVMAIN(...,'backup',S) - attempt to resume interrupted calculation from backup structure S,
 %   where S = load(FILE), after a previous call with ..,'backup',FILE.
 
     global SimOptions
@@ -164,42 +164,25 @@ function varargout = PVmain(varargin)
     
     options.backup = '';
     [options,varargin] = getpairedoptions(varargin,options);
+    B = options.backup;
+    
+    if numel(varargin) == 11
+        options = completestruct(varargin{end},options); 
+    end
+    [MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter] = deal(varargin{1:10});
+    
+    fprintf('Evaluating Shading Results...\n');
+    [POA,ShRes] = poairradiance(MD,SunPos,Trck,fHor,ShRes);
+    [POA,EB] = effectiveirradiance(POA,MD,Trck,ModIV.source.material);
+
+    [POA.Tush,POA.Tsh] = getcelltemperatures(POA,MD,celltemp);
    
-    switch numel(varargin) 
-    case 0
+    if isstruct(B)
     % Resume from crash (already on pvArraySolver)
-        assert(isstruct(options.backup) && isfield(options.backup,{'opt','POA'}),...
-            'Failed to recover from backup')
-        B = options.backup;
-        options = rmfield(options,'backup');
-        
-        % New SimOptions can override backup options!
-        options = completestruct(options,B.opt);
-        
-        fld = setdiff(fieldnames(B.opt),'backup');
-        changed = ~cellfun(@(f) isequal(B.opt.(f),options.(f)),fld);
-        if any(changed)
-            warning('Attempting to resume with altered simulation %s',...
-                shortliststr(fld(changed),'option','colon',':'));
-            for j = find(changed), B.opt.(fld{j}) = options.(fld{j}); end
-        end
 
-        SolRes = pvArraySolver('backup',B.backup);
-        [~,EB] = effectiveirradiance(B.POA,B.MD,B.Trck,B.ModIV.source.material);
-        clear B
-        
-    case {10,11}
+        SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,options,'backup',B);
+    else
     % MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,Diode,Inverter,[OPT])
-        if numel(varargin) == 11
-            options = completestruct(varargin{end},options); 
-        end
-        [MD,SunPos,ShRes,Trck,fHor,ArrDef,ModIV,celltemp,Diode,Inverter] = deal(varargin{1:10});
-        
-        fprintf('Evaluating Shading Results...\n');
-        [POA,ShRes] = poairradiance(MD,SunPos,Trck,fHor,ShRes);
-        [POA,EB] = effectiveirradiance(POA,MD,Trck,ModIV.source.material);
-
-        [POA.Tush,POA.Tsh] = getcelltemperatures(POA,MD,celltemp);
 
         fprintf('\tRunning electrical solver...\n');
         SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,options);

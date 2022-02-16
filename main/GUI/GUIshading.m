@@ -103,15 +103,14 @@ function GUIshading(~,~)
     end
     
     if frombackup
-        ShRes = ShadingAnalysis('backup',ShRes);
+        ShRes = ShadingAnalysis(SunPos,Trck,HorProf,SR,'IAM',IAM,'backup',ShRes);
     elseif parallel
         % Run shading analysis on parallel cluster
         [ShRes,cleaner] = runparallel(@ShadingAnalysis,{SunPos,Trck,HorProf,SR,'IAM',IAM},1,...
             [],'N',numel(SunPos.El),'-simoptions','-backup');
     else
         % DEBUG Backdoor: Run single-threaded
-        ShRes = ShadingAnalysis(SunPos,Trck,HorProf,SR,'IAM',IAM,...
-            'backup',[resfilename,'~']);
+        ShRes = ShadingAnalysis(SunPos,Trck,HorProf,SR,'IAM',IAM,'backup',[resfilename,'~']);
     end
     
     % Add info fields

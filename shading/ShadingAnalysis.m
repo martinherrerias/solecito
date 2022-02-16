@@ -1,4 +1,4 @@
-function ShRes = ShadingAnalysis(varargin)
+function ShRes = ShadingAnalysis(SunPos,Trackers,varargin)
 % RES = SHADINGANALYSIS(SUNPOS,TRCK,[HOR,SHGEOM,OPT,'opt',val,..])
 %   Perform geometrical shading analysis for the tracker field TRCK, at the solar positions
 %   given in SUNPOS, optionally considering horizon profile(s) HOR, and using a diffuse shading
@@ -67,6 +67,14 @@ function ShRes = ShadingAnalysis(varargin)
 
 %% Preprocessing
 
+    parsestruct(SunPos,{'Az','El'},'-n','-f','-r','-v','-e');
+    parsestruct(Trackers,{'analysedpoints','analysedtrackers','axisoffset','centerheight','centers'},'-n','-r','-f');
+    assert(isfield(Trackers,'geom') && isa(Trackers.geom,'pvArea'),'Missing/bad TRCK.geom');
+
+    sunaz = single(SunPos.Az(:));
+    sunel = single(SunPos.El(:));
+    clear SunPos
+
     global SimOptions
     SimOptions = completeoptions(); % fill with defaults if necessary
  
@@ -77,55 +85,61 @@ function ShRes = ShadingAnalysis(varargin)
                 'IAM','sensors'}; % TODO: these two are actually important inputs!
             
     % Mininum list of variables that allow resuming after crash
-    BACKUP_VARS = {'sunaz','sunel','Trackers','Terrain','ShRegions','options',...
+    BACKUP_VARS = {'Terrain','ShRegions','options',...
         'simtimer','BLPoly','BshF','Nsb','DshF','DwF0','DwF','belowhorizon','t'};
 
     options = rmfield(SimOptions,setdiff(fieldnames(SimOptions),REQ_OPT));
     clear SimOptions
+        
     options.backup = '';
     [options,varargin] = getpairedoptions(varargin,options);
 
-    switch numel(varargin) 
-    case 0
+    options.backup = '';
+    [options,varargin] = getpairedoptions(varargin,options);
+    B = options.backup;
+    
+    varargin(end+1:2) = {[]};
+    [Terrain,ShRegions,varargin] = deal(varargin{1:2},varargin(3:end));    
+    if ~isempty(varargin)
+        assert(isscalar(varargin),'Unrecognized arguments');
+        options = completestruct(varargin{end},options);
+        options = rmfield(options,setdiff(fieldnames(options),REQ_OPT));
+    end        
+    clear varargin
+    
+    if isstruct(B)
     % RES = SHADINGANALYSIS('backup',S)
     % Resume from crash, load existing results from previous partial simulation structure...
         assert(isstruct(options.backup) && all(isfield(options.backup,BACKUP_VARS)),...
             'Failed to recover from backup');
+        
+        missing = BACKUP_VARS(~isfield(B,BACKUP_VARS));
+        if ~isempty(missing)
+            error('Failed to recover from backup: missing %',shortliststr(missing,'field'))
+        end
 
-        varargin = struct2cell(orderfields(options.backup,BACKUP_VARS));
-        [sunaz,sunel,Trackers,Terrain,ShRegions,options,...
-            simtimer,BLPoly,BshF,Nsb,DshF,DwF0,DwF,belowhorizon,t0] = deal(varargin{:});
-        clear varargin
+        % New SimOptions can override backup options!
+        options = completestruct(rmfield(options,'backup'),B.opt);
+        
+        [~,~,msg] = comparestruct(B.opt,options,'xor',{'bakcup','new'});
+        if ~isempty(msg)
+            warning('Resuming with altered simulation options: \n%s\n',...
+                    strjoin(msg,newline()));
+        end
+        [~,ib] = ismember(BACKUP_VARS,fieldnames(B));
+        B = struct2cell(B); 
+        [Terrain,ShRegions,options,...
+            simtimer,BLPoly,BshF,Nsb,DshF,DwF0,DwF,belowhorizon,t0] = deal(B{ib});
 
         t0 = t0 + 1; % start at the next not-finished timestep
-    case {2,3,4,5}
+    else
     % RES = SHADINGANALYSIS(SUNPOS,TRCK,[HOR,SHGEOM,OPT])
-        if numel(varargin) == 5
-            options = completestruct(varargin{end},options);
-            options = rmfield(options,setdiff(fieldnames(options),REQ_OPT));
-            
-            % % Parse options structure: check required, remove unused
-            % missing = ~isfield(options,REQ_OPT);
-            % assert(~any(missing),'Missing %s',shortliststr(REQ_OPT(missing),'option','quotes',''''));
-            % options = cell2struct(cellfun(@(x) options.(x),REQ_OPT','unif',0),REQ_OPT');
-        end
-        varargin(end+1:4) = {[]};
-        [SunPos,Trackers,Terrain,ShRegions] = deal(varargin{1:4});
-        clear varargin
-        
+
         % Parse input, PENDING: requires further testing of input
 
         t0 = 1; % start from the beginning
         simtimer = stopwatch();
 
-        parsestruct(SunPos,{'Az','El'},'-n','-f','-r','-v','-e');
-        parsestruct(Trackers,{'analysedpoints','analysedtrackers','axisoffset','centerheight','centers'},'-n','-r','-f');
-        assert(isfield(Trackers,'geom') && isa(Trackers.geom,'pvArea'),'Missing/bad TRCK.geom');
-        
-        sunaz = single(SunPos.Az(:));
-        sunel = single(SunPos.El(:));
-        clear SunPos
-    
         if isempty(ShRegions)
             ShRegions = ShadingRegions();
         end
@@ -151,11 +165,7 @@ function ShRes = ShadingAnalysis(varargin)
            warning('Ground-shading requires diffuse-shading! - will be disabled');
            options.groundshading = false;
         end
-        
-    otherwise
-        error('Expecting 0 (crash-resume) or 4-5 positional arguments: SUNPOS,TRCK,HOR,SHGEOM,OPT');
     end
-    clear varargin
     
     % Everything works internally in a rotated 'Project Coordinate System', so in order to keep
     % sky patches fixed to an absolute (geographic) reference, we have to work with a rotated

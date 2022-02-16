@@ -1,11 +1,11 @@
-function SolRes = pvArraySolver(varargin)
+function SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,varargin)
 % SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,[OPT,'opt',val,..])
 %   Calculate PV-plant's DC operating points over a time-series, given irradiance and temperatures 
 %   for each tracker at every step (POA), electrical models for all system's components, a connection-
 %   scheme for the complete plant, and 
 %   beam-shading information for every tracker and time-step.
 %
-% SolRes = pvArraySolver('backup',S) - attempt to resume interrupted calculation from backup
+% SolRes = pvArraySolver(...,'backup',S) - attempt to resume interrupted calculation from backup
 %   structure S = load(FILE), after a previous call with ..,'backup',FILE.
 %
 % INPUT:
@@ -96,6 +96,8 @@ function SolRes = pvArraySolver(varargin)
 
 %% Parse input, and complete simulation options with defaults
 
+    narginchk(6,Inf);
+
     global SimOptions
     SimOptions = completeoptions(); % fill with defaults if necessary
 
@@ -106,37 +108,49 @@ function SolRes = pvArraySolver(varargin)
         'backup','celldefects'};
     opt = rmfield(SimOptions,setdiff(fieldnames(SimOptions),REQ_OPT));
     clear SimOptions
+    
     opt.backup = '';
     [opt,varargin] = getpairedoptions(varargin,opt);
+    B = opt.backup;
+    
+    if ~isempty(varargin)
+        assert(isscalar(varargin),'Unrecognized arguments');
+        opt = completestruct(varargin{end},opt);
+        opt = rmfield(opt,setdiff(fieldnames(opt),REQ_OPT));
+    end    
 
     % Mininum list of variables that allow resuming after crash
-    VARS_TO_SAVE = {'POA','ShRes','ArrDef','ModIV','Diode','Inverter','opt',...
-                    'Push','Vush','Psh','Vsh','Pdc','Vdc','Plsh','Pwcs','simtimer','t','savedIVpps'};
-
-    switch numel(varargin) 
-    case 0
+    VARS_TO_SAVE = {'opt','Push','Vush','Psh','Vsh','Pdc','Vdc','Plsh','Pwcs','simtimer','t','savedIVpps'};    
+                
+    if isstruct(B)
     % SolRes = pvArraySolver('backup',S)
     % Resume from crash, load existing results from previous partial simulation structure...
-        assert(isstruct(options.backup) && all(isfield(options.backup,VARS_TO_SAVE)),...
-            'Failed to recover from backup');
+    
+        missing = VARS_TO_SAVE(~isfield(B,VARS_TO_SAVE));
+        if ~isempty(missing)
+            error('Failed to recover from backup: missing %',shortliststr(missing,'field'))
+        end
 
-        varargin = struct2cell(orderfields(options.backup,VARS_TO_SAVE));
-        [POA,ShRes,ArrDef,ModIV,Diode,Inverter,opt,...
-            Push,Vush,Psh,Vsh,Pdc,Vdc,Plsh,Pwcs,simtimer,t0] = deal(varargin{:});
+        % New SimOptions can override backup options!
+        opt = completestruct(rmfield(opt,'backup'),B.opt);
+        
+        [~,~,msg] = comparestruct(B.opt,opt,'xor',{'bakcup','new'});
+        if ~isempty(msg)
+            warning('Resuming with altered simulation options: \n%s\n',...
+                    strjoin(msg,newline()));
+        end
+        [~,ib] = ismember(VARS_TO_SAVE,fieldnames(B));
+        B = struct2cell(B); 
+        [opt,Push,Vush,Psh,Vsh,Pdc,Vdc,Plsh,Pwcs,simtimer,t0,savedIVpps] = deal(B{ib});
 
         t0 = t0 + 1; % start at the next not-finished timestep
-    case {6,7}
+    else
     % SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,[OPT])
-        if numel(varargin) == 7
-            opt = completestruct(varargin{end},opt);
-            opt = rmfield(opt,setdiff(fieldnames(opt),REQ_OPT));
-        end
-        [POA,ShRes,ArrDef,ModIV,Diode,Inverter] = deal(varargin{1:6});
         
         simtimer = stopwatch();
         t0 = 1;
     end
-    clear varargin
+    clear varargin B
 
     % Parse POA structure, expand Bpoa to be [Nt,Nu,Np]
     parsestruct(POA,{'Dpoa','Bpoa','Tush','Tsh','ShF','Nsb'},'-r','-n');
