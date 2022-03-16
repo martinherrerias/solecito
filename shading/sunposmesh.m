@@ -2,10 +2,6 @@ function [Q,W] = sunposmesh(varargin)
 % [V,W,PRJ] = SUNPOSMESH(S) - Generate a triangular mesh of points V over the unit sphere, that
 %   fully contains the set of unit vectors S, and can be used to interpolate the values of a
 %   scalar-valued function f(S) as f(S) ~ W·f(V) from a weight matrix W and the reduced set V.
-%   
-%   The mesh is generated over a flat projection PRJ (POLYPROJECTOR object), and brought back to
-%   the unit sphere. This introduces some distortion and non-uniformity of mesh triangles.
-%   FUTURE: refine mesh directly on unit sphere.
 %
 %   Weights are calculated by W = INTERPMATRIX(S,V,'-sph').
 %
@@ -77,32 +73,41 @@ function [Q,W] = sunposmesh(varargin)
         return; 
     end
     
-    R = 4;
-    ALPHA = R/2;
+    % PROVISIONAL?: Jigsaw crashes wiht a large mesh (1e5+)... and at some point it makes little 
+    % sense to simplify a mesh rather than just starting with a coarse spherical tessellation
+    N0 = 4*pi/(opt.meshsize^2*0.4);
+    N0 = 2 + 10*4^ceil(log2((N0 - 2)/10)/2);
+    if size(P,1) > N0
+        Q = spherepoints(N0,'regular',true);
+        if opt.plot, T = convhull(Q); end
+    else    
+        R = 4;
+        ALPHA = R/2;
 
-    P(N+1,:) = 0;  % add origin as last point
+        P(N+1,:) = 0;  % add origin as last point
 
-    shp = alphaShape(R*P,ALPHA*R);
-    shp.HoleThreshold = shp.volume();
-    T = shp.alphaTriangulation;
-    T(~any(T > N,2),:) = [];        % remove tetrahedra without origin
-    T = sort(T,2);                  % sort so that last vertex for each facet is origin
-    
-    T(:,4) = [];
-    P(end,:) = [];
-    
-    TR = triangulation(T,P);
-    E = TR.edges;
-    toolong = dot(P(E(:,1),:),P(E(:,2),:),2) < cos(MAX*opt.meshsize);
-    toobig = ismember(T(:,1:2),E(toolong,:),'rows') | ...
-             ismember(T(:,2:3),E(toolong,:),'rows') | ...
-             ismember(T(:,[1,3]),E(toolong,:),'rows');
-    T(toobig,:) = [];
-    
-    warning_resetter = naptime('MATLAB:triangulation:PtsNotInTriWarnId'); %#ok<NASGU>
+        shp = alphaShape(R*P,ALPHA*R);
+        shp.HoleThreshold = shp.volume();
+        T = shp.alphaTriangulation;
+        T(~any(T > N,2),:) = [];        % remove tetrahedra without origin
+        T = sort(T,2);                  % sort so that last vertex for each facet is origin
 
-    [Q,T] = cleantrisurf(P,T,MIN*opt.meshsize,opt.meshsize,...
-        'geom_feat',false,'optm_tria',false,'optm_div_',false,'mesh_rad2',10,'geom_seed',0);
+        T(:,4) = [];
+        P(end,:) = [];
+
+        TR = triangulation(T,P);
+        E = TR.edges;
+        toolong = dot(P(E(:,1),:),P(E(:,2),:),2) < cos(MAX*opt.meshsize);
+        toobig = ismember(T(:,1:2),E(toolong,:),'rows') | ...
+                 ismember(T(:,2:3),E(toolong,:),'rows') | ...
+                 ismember(T(:,[1,3]),E(toolong,:),'rows');
+        T(toobig,:) = [];
+
+        warning_resetter = naptime('MATLAB:triangulation:PtsNotInTriWarnId'); %#ok<NASGU>
+
+        [Q,T] = cleantrisurf(P,T,MIN*opt.meshsize,opt.meshsize,...
+            'geom_feat',false,'optm_tria',false,'optm_div_',false,'mesh_rad2',10,'geom_seed',0);
+     end
 
     [W,e] = interpmatrix(P,Q,'-sph','maxarc',opt.meshsize,'tol',opt.meshsize/16);
     W = blkdiag(W,speye(nnz(e)));
@@ -140,7 +145,7 @@ end
 
 function test()
     rng(1);
-    N = 100;
+    N = 1000;
     M = 10; 
     X = rand(N*M,3)*2-1 + (repmat(rand(M,3),N,1)*2-1)*5;
     X(:,3) = abs(X(:,3));
