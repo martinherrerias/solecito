@@ -10,8 +10,7 @@ function [POA,ShR] = poairradiance(MD,SP,Trck,horizon,ShR,varargin)
 %   MD - structure with Nt-vector fields BNI (Beam Normal-), DHI (Diffuse Horizontal-), GHI 
 %		(Global	Horizontal-), ENI (Extraterrestrial Irradiance), albedo, and optionally AMr 
 %       (relative air mass), and custom Perez coefficients F1, F2. All Nt-vectors.
-%   SP - structure with fields Az (azimuth, Equator = 90° convention) and El (elevation), both 
-%		Nt-vectors in degrees.
+%   SP - structure with fields Az (N2E convention) and El (elevation), both Nt-vectors in degrees.
 %   TRCK - mounts structure, the fields required depend on TRCK.type (see MOUNTROTATIONS)
 %       The optional field TRCK.analysedtrackers (default 1:end) can reduce/resort the mounts
 %       under analysis.

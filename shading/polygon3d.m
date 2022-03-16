@@ -246,7 +246,7 @@
 			
             preserve = true(size(P));
             for k = 1:numel(P)
-                V = [P.x;P.y;P.z]; 
+                V = [P(k).x;P(k).y;P(k).z]; 
                 zz = n'*bsxfun(@minus,V,q); % magnitude of normal distances from cutting plane
                 ap = (zz >= 0);             % above-plane flags
                 

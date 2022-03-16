@@ -52,8 +52,8 @@ function ShRes = ShadingAnalysis(SunPos,Trackers,varargin)
 %
 % FUTURE WORK:
 %  - Handle multiple mount types / missing modules.
-%  - Ground shades over irregular terrain. Projection over triangular mesh, merging and handling of
-%    holes in merged 3D shade. Possibly using constrained delaunay triangulation (DelaunayTri).
+%  - Beam shading from terrain (obstacles!)
+%  - Switch to face-vertex representation
 %  - Beam-shading calculation assumes all mounts have similar orientations (calculation on average
 %    plane). A clustering algorithm should be used to allow e.g. building-integrated systems.
 %  - For diffuse shading: use a spherical polygon clipping library to merge polygons before

@@ -62,7 +62,7 @@ function [Tm,eta,pars] = celltemp_mattei(Ge,Ta,vw,varargin)
     eta = eta_ref.*(1 + gamma*log10(Ge/1000) + beta*T_STC);
     
     Tm = (Upv.*Ta + Ge.*(alpha - eta))./(Upv - beta*eta_ref*Ge);
-    if nargout > 2
+    if nargout > 1
         eta = eta - beta*eta_ref.*Tm;
     end
 end

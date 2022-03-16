@@ -19,8 +19,8 @@ function [Dsky,Dgnd,Dcs] = diffusecomponents(SR,MD,SP,model)
 %       and optionally AMr (relative air mass), and custom Perez coefficients F1, F2.
 %
 %   SP - structure with fields Az and El (elevation), both Nt-vectors in degrees. Azimuth 
-%       convention will determine the absolute orientation of the regions in SR, so it must
-%       be consistent with later calls to POAIRRADIANCE
+%       convention is assumed to be N2E (astronomical), for SKYREGIONS defined in a system with
+%       x = East, y = North.
 %
 %   model - optional string {'perez','haydavies','igawa'}, determines whether to use the Perez et 
 %       al. 1990, Hay & Davies 1980, or Igawa et al. 2004  model. 
@@ -81,7 +81,7 @@ function [Dsky,Dgnd,Dcs] = diffusecomponents(SR,MD,SP,model)
         end
 
         prj = polyprojector('ortho','normalize',1);
-        [F_skyH,~,F_csH] = viewfactors(SR,prj,[0;0;1],sph2cartV(SP.Az,SP.El)');
+        [F_skyH,~,F_csH] = viewfactors(SR,prj,[0;0;1],sph2cartV(90-SP.Az,SP.El)');
         [F_skyV,F_gndV] = viewfactors(SR,prj,[1;0;0],[0;0;1]);
         
         if F_skyH(1) < F_skyV(1) || F_skyH(2) > F_skyV(2)
