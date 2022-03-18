@@ -20,3 +20,5 @@ Introduction:
 Note that:
 
 1. Here all dirs are represented as the relative dirs. Therefore we need to take close care of our current dir.
+2. In order to recognize the option file (SimOption.xml), we need to set environment variable -- PVCPLUSPLUS_ROOT, which tells us the absolute path of the folder pvCplusplus.
+  * E.g., in the linux system, first enter to the folder pvCplusplus, then type "export PVCPLUSPLUS_ROOT=$PWD".

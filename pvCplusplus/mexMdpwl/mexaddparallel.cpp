@@ -18,12 +18,18 @@ void mexaddparallel(double ***array, mwSize* inLength, mwSize size, double* tol,
 #endif
     /// Get file pointer to the SimOption.xml file.
     GetSimOptFile* filePtr = GetSimOptFile::Instance();
-    
+
+    char *RootPath = std::getenv("PVCPLUSPLUS_ROOT");
+    if(RootPath == NULL)
+    {
+        std::cerr<<"The environment variable PVCPLUSPLUS_ROOT (the absolute path of folder pvCplusplus) should be preset!\n";
+        std::cerr<<"Please read readme to get more detailed information about PVCPLUSPLUS_ROOT!\n";
+        abort();
+    }
+
     char SrcPath[PATH_MAX] = "\0"; // Absolute path of the resource file
-    realpath("./", SrcPath);
-    
-    char *substr = strstr(SrcPath, "solar-simulation");
-    strcpy(substr, "solar-simulation/pvCplusplus/pvProj/Resources/SimOption.xml");
+    strcpy(SrcPath,RootPath);
+    strcat(SrcPath,"/pvProj/Resources/SimOption.xml");
 
     filePtr->openOptionFile(SrcPath);
     filePtr->readOptionFile();

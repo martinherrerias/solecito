@@ -19,15 +19,21 @@ void mexaddseries(double ***array, mwSize* inLength, mwSize size, double* tol, d
 
     GetSimOptFile* filePtr = GetSimOptFile::Instance();
 
-    char SrcPath[PATH_MAX] = "\0"; // Absolute path of the absolute file
-    realpath("./", SrcPath);
-    
-    char *substr = strstr(SrcPath, "solar-simulation");
-    strcpy(substr, "solar-simulation/pvCplusplus/pvProj/Resources/SimOption.xml");
+    char *RootPath = std::getenv("PVCPLUSPLUS_ROOT");
+    if(RootPath == NULL)
+    {
+        std::cerr<<"The environment variable PVCPLUSPLUS_ROOT (the absolute path of folder pvCplusplus) should be preset!\n";
+        std::cerr<<"Please read readme to get more detailed information about PVCPLUSPLUS_ROOT!\n";
+        abort();
+    }
+
+    char SrcPath[PATH_MAX] = "\0"; // Absolute path of the resource file
+    strcpy(SrcPath,RootPath);
+    strcat(SrcPath,"/pvProj/Resources/SimOption.xml");
 
     filePtr->openOptionFile(SrcPath);
     filePtr->readOptionFile();
-    
+
 #ifdef TIMER
     TIMESTAMP( eXMLTime );
     std::cout<<"Pure XML read overhead...";
