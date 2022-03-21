@@ -2,9 +2,12 @@
 *.m~
 *.mat~
 *.bak
+*.diode
 *.o
 *.mexa64
+*.modint
 config.ini*
 config-*.ini
 tmp/*
 Remote/useraccounts.m
+**/SimOption.xml
