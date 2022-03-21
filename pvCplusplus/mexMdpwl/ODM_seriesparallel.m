@@ -1,12 +1,7 @@
 
 TOL = 1e-4;
 setSimOption('RelTol',TOL);
-
-% -------------------------------------------------------------
-% FIX! --- MEX function only works from home... COVID issues :p
-cd(fileparts(which('mexaddseries')));
-cd('..') % comment this line for script to work
-% -------------------------------------------------------------
+pvCplusplusSimOptions();
 
 % Load ODM parameters & pick a module at random
 addpath(absolutepath('../../tests/ODM',fileparts(which('ODM_seriesparallel.m'))));

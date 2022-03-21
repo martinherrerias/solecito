@@ -13,6 +13,7 @@ rmpath(genpath('./.git'));
 rmpath(genpath('./tests/ODM'));
 
 rmpath(genpath('./pvCplusplus'));
+addpath('./pvCplusplus');
 addpath('./pvCplusplus/mexMdpwl');
 
 rmpath('./matlab-pvmeteo/PVLIB/Example Data');
