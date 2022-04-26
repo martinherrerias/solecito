@@ -32,14 +32,14 @@ properties (Hidden = true, Access = private) % Transient = true
     cInterp
 end
 methods(Access = protected)
-       function cp = copyElement(obj)
-       % Called by copy(obj), deep-copy of obj, including PVAREA and MDPWL objects
-            
-            cp = copyElement@matlab.mixin.Copyable(obj); % Shallow copy
-            cp.geom = copy(obj.geom);
-            cp.IVpps = arrayfun(@copy,obj.IVpps);
-        end 
-    end
+    function cp = copyElement(obj)
+    % Called by copy(obj), deep-copy of obj, including PVAREA and MDPWL objects
+
+        cp = copyElement@matlab.mixin.Copyable(obj); % Shallow copy
+        cp.geom = copy(obj.geom);
+        cp.IVpps = arrayfun(@copy,obj.IVpps);
+    end 
+end
 methods
     function obj = ModuleInterpolant(source,ge,tc,varargin)
     % OBJ = MODULEINTERPOLANT(IVPPS,GE,TC,PARAMS) contructs a MODULEINTERPOLANT object from 
