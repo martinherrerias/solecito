@@ -10,3 +10,9 @@
 [submodule "external/jigsaw-matlab"]
 	path = external/jigsaw/jigsaw-matlab
 	url = https://github.com/dengwirda/jigsaw-matlab.git
+[submodule "pvCplusplus/eigen"]
+	path = pvCplusplus/eigen
+	url = https://gitlab.com/libeigen/eigen
+[submodule "pvCplusplus/libigl"]
+	path = pvCplusplus/libigl
+	url = https://github.com/libigl/libigl.git

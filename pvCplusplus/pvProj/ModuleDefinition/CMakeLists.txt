@@ -14,8 +14,8 @@ file(GLOB sources ./*.cpp
 
 
 file(GLOB data "../Resources/*")
-include_directories("../../EIGENDIR")
-include_directories("../../LIBIGLDIR")
+include_directories("../../eigen")
+include_directories("../../libigl")
 
 #"../Utils"
 

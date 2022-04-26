@@ -201,7 +201,8 @@ void OneDiodeModel::fiveParameterODMInv(const ArrayXi& indexS)
     	setRootFind(&nrMethod);
     	findRoot();
     }
-    igl::slice_into(tmpVSet,indexS,vSet);
+    // igl::slice_into(tmpVSet,indexS,vSet);
+    vSet(indexS) = tmpVSet;
 }
 
 void OneDiodeModel::VoltoCurr(ArrayXd vSet_)

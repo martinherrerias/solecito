@@ -5,8 +5,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CAMKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBARRY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-include_directories("../../EIGENDIR")
-include_directories("../../LIBIGLDIR")
+include_directories("../../eigen")
+include_directories("../../libigl")
 
 project("Utils")
 

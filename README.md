@@ -36,12 +36,12 @@ Since 2019, the code has been reworked in the framework of the **HyForPV** proje
 
 #### 1. Clone the repository (*with submodules!*):
 
-`git clone --recurse-submodules git@github.com:martinherrerias/PV4K-matlab.git`
+`git clone --recurse-submodules git@github.com:martinherrerias/solecito.git`
 
 #### 2. Add code to the matlab path (note some folders are removed, to avoid path cluttering and name conflicts):
 
 ```
-BASEDIR = '~/PV4K-matlab';  % your cloned repository
+BASEDIR = '~/solecito';  % your cloned repository
 cd(BASEDIR);
 addpath(genpath('.'));
 rmpath(genpath('./.git'));
