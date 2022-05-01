@@ -38,8 +38,4 @@ entry Trina_TSM_310PD14.PAN
 34:pv.mod.odm.di2mutau=0.0
 35:pv.mod.odm.Brev=9.84E+0
 36:pv.mod.odm.NOCT=44.0
-37:pv.mod.odm.TempModel=SAPM
-38:pv.mod.odm.a_wind=-3.56
-39:pv.mod.odm.b_wind=-0.08
-40:pv.mod.odm.delT=3.0
 !

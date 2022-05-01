@@ -198,7 +198,7 @@ end
 
 function [celltemp,NOCT] = getcelltemperaturemodel(ODM,ModIVint)
 % Read Cell-Temperature parameters from ODM and/or SimOptions, create CellTemp interpolant
-    [celltemp,ctf0,S] = getcelltempfcn(ODM,@ModIVint.MPPefficiency);
+    [celltemp,ctf0,S] = getcelltempfcn(ODM,'eff',@ModIVint.MPPefficiency);
     fprintf('Cell-Temp. model: %s\n',S.info);
     setflag('models',-3,['CellTemp: ' S.info],'app');
 

@@ -37,9 +37,6 @@ entry Canadian_CS6X_310P_FG_PAN
 33:pv.mod.odm.Vbi=64.8
 34:pv.mod.odm.di2mutau=0.0
 35:pv.mod.odm.Brev=1.09E+1
-36:pv.mod.odm.NOCT=44.0
-37:pv.mod.odm.TempModel=Uval
-38:pv.mod.odm.Uconst=29.0
-39:pv.mod.odm.Uwind=0.0
+36:pv.mod.odm.NOCT=45.0
 40:pv.mod.odm.absort=0.9
 !

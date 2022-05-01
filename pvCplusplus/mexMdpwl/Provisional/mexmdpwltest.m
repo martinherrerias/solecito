@@ -9,7 +9,7 @@ M = M(randi(numel(M))); % keep one of the modules at random
 cd(basedir);
 
 % Calculate cell-temperature function
-celltemp = getcelltempfcn(M.source,@M.MPPefficiency);
+celltemp = getcelltempfcn(M.source,'eff',@M.MPPefficiency);
 
 Nm = 20;  % Modules per string 20
 Ns = 6;   % Strings per MPPT 6

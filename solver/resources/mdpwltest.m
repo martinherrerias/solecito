@@ -5,7 +5,7 @@ D = M.Diode;
 M = M.ModIVint;
 
 % Calculate cell-temperature function
-celltemp = getcelltempfcn(M.source,@M.MPPefficiency);
+celltemp = getcelltempfcn(M.source,'eff',@M.MPPefficiency);
 %%
 
 Nm = 20;  % Modules per string

@@ -38,9 +38,5 @@ entry REC_255PE_BLK.PAN
 34:pv.mod.odm.di2mutau=0.0
 35:pv.mod.odm.Brev=1.063E+01
 36:pv.mod.odm.NOCT=45.7
-37:pv.mod.odm.TempModel=Uval
-38:pv.mod.odm.Uconst=28.0
-39:pv.mod.odm.Uwind=0.0
-40:pv.mod.odm.absort=0.9
 !
 
