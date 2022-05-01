@@ -21,34 +21,30 @@ function GUIsetup(~,~)
     SimOptions = rmfield(SimOptions,setdiff(fieldnames(SimOptions),fields2keep));
     OptionFlags = cell2struct(repmat({true},[numel(fields2keep),1]),fields2keep);
     
-    % First guess is PRJPATH/AddSimOptions.m
-    optionsfile = fullfile(fileparts(SimOptions.prjname),'AddSimOptions.m');
-    if isempty(dir(optionsfile))
-        if ~isempty(dir('./AddSimOptions.m'))
-            copyfile('./AddSimOptions.m',optionsfile);
-            fprintf(['\tPWD/AddSimOptions.m file copied to project directory, ',...
-                 'make changes and run Setup again, if required.\n']);
-            flagmsg{1} = 'AddSimOptions.m copied from Working directory';
-        else
-            writeoptionsfile(fileparts(optionsfile));
-            fprintf(['\tDefault AddSimOptions.m file added to project directory, ',...
-                     'make changes and run Setup again, if required.\n']);
-            flagmsg{1} = 'AddSimOptions.m not found, using defaults';
+    % Load custom options from PRJNAME_simoptions.json, complete with defaults
+    optionsfile = regexprep(SimOptions.prjname,'(\.ssp)$','*.json');
+    optionsfile = pickfile(optionsfile,1,'options.json file (cancel to create default)','-soft');
+    if ~isempty(optionsfile)
+        try
+            readoptionsfile(optionsfile);
+            flagmsg{1} = sprintf('Using %s',optionsfile);
+            fprintf('\tUsing %s...\n',optionsfile);
+        catch ERR
+            warning('Failed to read %s, custom options ignored! - error: %s\n',...
+                optionsfile,getReport(ERR));
+            optionsfile = {};
         end
-    else
-        fprintf('\tUsing PRJPATH/AddSimOptions.m...\n');
-        flagmsg{1} = 'Using PRJPATH/AddSimOptions.m';
     end
-    
-    fprintf('\tExecuting AddSimOptions.m...\n');
-    run(optionsfile);
-    
-    fprintf('\tCompleting SimOptions structure...\n');
-    completeoptions(); % update/complete SimOptions and OptionFlags with DEFAULTOPTIONS
+    if isempty(optionsfile)
+        optionsfile = writeoptionsfile();
+        fprintf(['\t%s options file created in project directory, ',...
+                 'make changes and run Setup again, if required.\n'],optionsfile);
+        flagmsg{1} = [optionsfile ' not found, creating default'];
+    end
 
     allflags = nestedstruct2cell(OptionFlags);
     allflags = [allflags{:}]';
-    flagmsg{2} = sprintf('%d of %d option fields completed from DefaultOptions', nnz(allflags), numel(allflags));
+    flagmsg{2} = sprintf('%d of %d option fields match DefaultOptions', nnz(allflags), numel(allflags));
 
     evalin('base','global SimOptions;'); 
     evalin('base','global OptionFlags;');

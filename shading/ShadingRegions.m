@@ -685,7 +685,7 @@ methods
             OPT = completestruct(varargin{1},OPT);
         elseif ~isempty(varargin)
             [bopt,varargin] = getflagoptions(varargin,{'-dynamic','-wires','-labels'});
-            OPT = getpairedoptions(varargin,completeoptions(bopt,OPT),'restchk');
+            OPT = getpairedoptions(varargin,completestruct(bopt,OPT),'restchk');
         end
         
         if numel(OPT.sunpos) == 2
