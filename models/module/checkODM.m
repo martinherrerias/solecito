@@ -103,6 +103,8 @@ function ODM = checkODM(ODM)
 %
 % See also: TRANSLATEODM, ONEDIODEMODEL, ONEDIODEMODEL2, ONEDIODEMPP
 
+    if nargin == 0, ODM = test(); return; end
+
     % Required fields
     REQ = {'nDiode','Iph_ref','muIsc','Io_ref','Rsh_ref','Rs','Ns','area'};
     
@@ -404,7 +406,7 @@ end
              'source','material',1;
              'adjust','CEC_muIsc_adjust',1./100};
          
-    warning('OFF','renamefields:overwrite');
+    warning_resetter = naptime('renamefields:overwrite'); %#ok<NASGU>
     M = renamefields(ODM,REGEXP,'-regexprep','-ignorecase');
     M = renamefields(M,SIMPLE(:,1:2),'-ignorecase','scale',[SIMPLE{:,3}]);
     M = renamefields(M,[KNOWN;KNOWN]','-ignorecase');
@@ -420,4 +422,10 @@ end
         DEP(end+1,:) = {'beta_oc','muVoc',1./M.Voc_ref};
     end
     M = renamefields(M,DEP(:,1:2),'-ignorecase','scale',[DEP{:,3}]);
+ end
+ 
+ function ODM = test()
+% Load ODM parameters from ../../tests/ODM/*.samlib files
+    addpath(absolutepath('../../tests/ODM',fileparts(mfilename())));
+    ODM = ODM_testbase();
  end
