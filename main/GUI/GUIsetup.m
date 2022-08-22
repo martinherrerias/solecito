@@ -35,6 +35,9 @@ function GUIsetup(~,~)
             optionsfile = {};
         end
     end
+    
+    completeoptions(); % update SimOptions and OptionFlags
+    
     if isempty(optionsfile)
         optionsfile = writeoptionsfile();
         fprintf(['\t%s options file created in project directory, ',...

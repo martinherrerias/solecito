@@ -35,6 +35,7 @@ function filename = writeoptionsfile(filename,overwrite)
 
     fID = fopen(filename,'w');
     lastwill = onCleanup(@() fclose(fID));
-
+    
+    fprintf(fID,'%s\n','# See DefaultOptions.m for option descriptions');
     fprintf(fID,'%s\n',txt);
 end

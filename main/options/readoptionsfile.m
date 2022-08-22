@@ -4,6 +4,7 @@ function varargout = readoptionsfile(file)
 
     if ~isfile(file), error('Failed to find file: %s',file); end
     txt = fileread(file);
+    txt = regexprep(txt,'#[^\n\r]*',''); % remove comments
     opt = jsondecode(txt);
 
     [val,fld] = nestedstruct2cell(opt);
