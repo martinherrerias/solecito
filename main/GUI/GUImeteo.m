@@ -31,8 +31,12 @@ function GUImeteo(varargin)
         here = pwd(); lastwill = onCleanup(@() cd(here)); 
         cd(fileparts(filename)); % switch to meteo-file location for wps_.. files to be found
         
+        % Use sensor configuration file, if available
+        sensorsfile = pickfile('*.sensors',Inf,'fullpath',true);
+        if isempty(sensorsfile), sensorsfile = []; end
+        
         fprintf('Source: %s\n',relativepath(filename));
-        MD = MeteoData.import(filename,[]);
+        MD = MeteoData.import(filename,sensorsfile);
     end
 
     loctxt = @(S) [deg2dms(S.latitude,'NS'),', ',deg2dms(S.longitude,'EW')];

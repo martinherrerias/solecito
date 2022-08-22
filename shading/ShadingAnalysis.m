@@ -201,6 +201,8 @@ function ShRes = ShadingAnalysis(SunPos,Trackers,varargin)
     trckgeom.border = intersectpolygons(Trackers.geom.border,trckgeom.border);
     trckgeom = struct(trckgeom,'pack16'); % pack16 all border polygons
     trackerarea = polygon.packedarea(trckgeom.border);
+    
+    beamshadingtol = max(1/(Nm*Ne*Nc)*options.cellshadingthreshold,eps(1))*trackerarea;
 
     % Flat Horizon (hemishpere) - an approx circle just slightly above XY plane
     FlatHor = polygon3d(linspace(0,360,ceil(1.5*360/options.angtol)),1,eps(pi),'pol');
@@ -334,27 +336,30 @@ function ShRes = ShadingAnalysis(SunPos,Trackers,varargin)
         % PROVISIONAL: Get Sensor Transposition Factors, (static & only far-horizon-profile!)
         % TODO: parse a sensor structure that allows tracker-mounted GTI sensors, and static
         %   (shaded) GHI/DHI/GTI sensors at specific locations on the field.
+        
         sensornormals = [0;0;1];
-        if ~isempty(options.sensors) 
-            
-            if istable(options.sensors), options.sensors = table2struct(options.sensors); end
-            sensornormals = repmat([0;0;1],1,numel(options.sensors));
-            
-            for j = 1:numel(options.sensors)
-               if isfield(options.sensors,'normal') && ~isempty(options.sensors(j).normal)
-                   sensornormals(:,j) = options.sensors(j).normal(:);
-               else
-                   if isfield(options.sensors,'az'), az = options.sensors(j).az; end
-                   if isempty(az), az = 0; end
-                   if isfield(options.sensors,'tilt'), el = 90 - options.sensors(j).tilt; end
-                   if isempty(el), el = 0; end
-                   sensornormals(:,j) = sph2cartV(az,el)';
-               end
-            end
-                            
-            % sensornormals = unique(sensornormals','rows')';
-            sensornormals = permute(sensornormals,[1,3,2]);
-        end
+        
+        % if ~isempty(options.sensors) 
+        % 
+        %     if istable(options.sensors), options.sensors = table2struct(options.sensors); end
+        %     sensornormals = repmat([0;0;1],1,numel(options.sensors));
+        % 
+        %     for j = 1:numel(options.sensors)
+        %        if isfield(options.sensors,'normal') && ~isempty(options.sensors(j).normal)
+        %            sensornormals(:,j) = options.sensors(j).normal(:);
+        %        else
+        %            if isfield(options.sensors,'az'), az = options.sensors(j).az; end
+        %            if isempty(az), az = 0; end
+        %            if isfield(options.sensors,'tilt'), el = 90 - options.sensors(j).tilt; end
+        %            if isempty(el), el = 0; end
+        %            sensornormals(:,j) = sph2cartV(az,el)';
+        %        end
+        %     end
+        % 
+        %     % sensornormals = unique(sensornormals','rows')';
+        %     sensornormals = permute(sensornormals,[1,3,2]);
+        % end
+        
         [F0_sky,F0_gnd,F0_cs] = viewfactors(rShReg,IAMprj,sensornormals,sunvec',Terrain.fHor);  % [Nt,Nc,Ns]
         for j = size(F0_sky,3):-1:1   
             % Sensor diffuse component weight factors. [Ns,1] vector of structures, equivalent to
@@ -454,7 +459,7 @@ for t = t0:Nt
         Vp = Vp*Rap;
         
         % Discard z (should be zero), and create packed polygons (for fast clipping)
-        POAshP = pack(polygon3d.vf2poly(Vp,TrckFaces));
+        POAshP = pack(polygon(polygon3d.vf2poly(Vp,TrckFaces)));
 
         simtimer.add2lap('beam');
     end
@@ -521,7 +526,7 @@ for t = t0:Nt
                     BshF(t,tr,:) = UINT16MAX; 
                     Nsb(t,tr,:) = Ne;
                     
-                elseif polygon.packedarea(sunlitPOA) == polygon.packedarea(POAshP(iatr))
+                elseif abs(polygon.packedarea(sunlitPOA) - polygon.packedarea(POAshP(iatr))) < beamshadingtol
                 % No shading, BshF(t,tr,:) = Nsb(t,tr,:) = 0
                 
                 elseif ~isempty(sunlitPOA)

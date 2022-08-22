@@ -194,7 +194,7 @@ function [POA,ShR] = poairradiance(MD,SP,Trck,horizon,ShR,varargin)
             D.gndbeam = D.albedo.*(1-rd)./b;
             D.albedo = D.albedo.*rd;
             A0.gndbeam = A0.albedo;
-        else
+        elseif isfield(S.DwF,'gndbeam')
             S.DwF = rmfield(S.DwF,'gndbeam');
             S.DshF = rmfield(S.DshF,'gndbeam');
         end

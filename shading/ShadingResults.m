@@ -833,7 +833,7 @@ methods (Hidden = true)
                 % xlabel('Azimuth (Eq = 0) [°]');
                 % ylabel('Elevation [°]');
                 
-                H = scatter3(s(:,1),s(:,2),s(:,3),20,ShR.BshF(:,1,1),'filled'); 
+                H = scatter3(ax,s(:,1),s(:,2),s(:,3),20,ShR.BshF(:,1,1),'filled'); 
             else
                 % OPTS = {'FaceColor','interp','edgecolor','w','edgealpha',0.2};
                 OPTS = {'FaceColor','interp','edgecolor','k','linewidth',0.1,'edgealpha',0.1,...
@@ -875,7 +875,11 @@ methods (Hidden = true)
             end
             
             % Update patch/scatter colors for BshF
-            H{3}.FaceVertexCData = reduce(F{3},OPS,3:5)';
+            if isa(H{3},'matlab.graphics.chart.primitive.Scatter')
+                H{3}.CData = reduce(F{3},OPS,3:5)';
+            else
+                H{3}.FaceVertexCData = reduce(F{3},OPS,3:5)';
+            end
         end
         
         function Y = reduce(X,ops,dims)
