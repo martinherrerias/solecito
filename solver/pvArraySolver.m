@@ -383,8 +383,8 @@ function SolRes = pvArraySolver(POA,ShRes,ArrDef,ModIV,Diode,Inverter,varargin)
     Psh(repmat(missingMPPT,1,1,Ns)) = NaN; % DC max. power after shading & mismatch
     Pdc(repmat(missingMPPT,1,1,Ns)) = NaN; % DC power subject to MPPT bounds
     
-    % FIX! - improve the options interface for mex PWL functions
-    if ~isfile('SimOption.xml'), writeSimOptionXML(); end
+    % TODO: improve the options interface for mex PWL functions
+    pvCplusplusSimOptions();
 
 %% Main Loop
 
