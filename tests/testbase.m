@@ -1,5 +1,9 @@
 function testbase(varargin)
-% TESTBASE(..) - Generate and [partially] run project files for each tracker type in SAMPLESYSTEM()
+% TESTBASE([PATH],..) - Generate and [partially] run project files for each tracker type in 
+%   SAMPLESYSTEM(), starting from an existing base project PATH/common/base.ssp, or creating/
+%   recalculating this base project using files available in PATH/common/. A "base project" is the
+%   result of SPLITSCRIPT('base.ssp',{'setup','models','meteo'}), i.e. it contains meteorological
+%   data (from which project location is extracted), along with component models.
 %
 % '-cleanup': remove *.mounts/*.arrdef/*.tpoly/*.mpoly files in TYPE subdirectories
 % '-restart': run splitscript('base.ssp',{'setup','models','meteo'}) on ./common, then replace
@@ -10,17 +14,22 @@ function testbase(varargin)
 % 'types',C: restrict testbase to some mount types
 % 'onerror', key: for key in {'debug','stop','continue'} choose what to do if an error is caught
 %   during execution.
+%
+% See also SAMPLESYSTEM, SPLITSCRIPT
+    
+    DEF.basepath = pwd();
+    DEF.files2copy = {};
+    DEF.types = {'0a','1aC','2a','1aV','1aF'};
+    if ~isempty(dbstatus), DEF.onerror = 'debug'; else, DEF.onerror = 'stop'; end
+    
+    FLAGS = {'-cleanup','-restart','-solve','-flat'};
 
     % Parse options
-    [opt,varargin] = getflagoptions(varargin,{'-cleanup','-restart','-solve','-flat'});
-    opt.files2copy = {};
-    opt.types = {'0a','1aC','2a','1aV','1aF'};
-    if ~isempty(dbstatus), opt.onerror = 'debug'; else, opt.onerror = 'stop'; end
-    [opt,varargin] = getpairedoptions(varargin,opt,'restchk');
+    opt = parseoptions(varargin,FLAGS,DEF,'dealrest',1);
     
     if opt.restart, opt.cleanup = true; end
     if isempty(opt.files2copy), opt.files2copy = cell(0,1); end
-    if ischar(opt.types), opt.types = {opt.types}; end
+    opt.types = parselist(cellstr(opt.types),DEF.types);
     
     switch lower(opt.onerror)
         case 'stop'
@@ -36,14 +45,8 @@ function testbase(varargin)
             error('Unrecognized ''onerror'' option.');
     end
     
-    if ~isempty(varargin)
-        assert(numel(varargin) == 1 && ischar(varargin{1}),'');
-        basepath = varargin{1};
-    else
-        basepath = pwd(); % fileparts(mfilename('fullpath'));
-    end
     here = pwd(); lastwill = onCleanup(@() cd(here));
-    cd(basepath);
+    cd(opt.basepath);
 
     if opt.cleanup && any(cellfun(@isfolder,opt.types))
         if ~strcmp(optquestdlg(['TESTBASE will remove any *.mounts/*.arrdef/*.tpoly/*.mpoly files in ',...
@@ -53,7 +56,7 @@ function testbase(varargin)
         end
     end
     
-    fprintf('Running TESTBASE on %s\n\n',basepath);
+    fprintf('Running TESTBASE on %s\n\n',opt.basepath);
     disp(opt);
     
     if ~isfolder('common'), mkdir('common'); end
@@ -84,7 +87,7 @@ function testbase(varargin)
     mpolyfile = pickfile('*.mpoly',Inf);
     if opt.cleanup, cellfun(@delete,mpolyfile); mpolyfile = {}; end
     
-    cd(basepath);
+    cd(opt.basepath);
     for type = opt.types(:)'
         
         if isempty(dir(type{1})), mkdir(type{1}); end

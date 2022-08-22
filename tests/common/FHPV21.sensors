@@ -1,0 +1,115 @@
+# list of sensors for the PV21 monitoring station at the airport Stuttgart
+# See MeteoSensor.readsensorspecs
+
+# Anchors can be used for sensors with common propperties, merge &X with << : *X
+ignore:
+    - &PLATFORM { location: [9.18915727, 48.69435333, 423.3]}
+    - &REFCELL { model: R, calibration: 5.0, zero_offset: 5.0 } # 5% GTI, min. 5.0 W/m^2 @ P95
+
+location:
+    name: FHPV21
+    latitude: 48.6944000
+    longitude: 9.1922350
+    altitude: 407
+    timezone: Europe/Berlin
+    coords_system: WGS84
+    
+# This is the actual list of sensors
+sensors:
+    - # Fraunhofer reference cell
+        id: FRCell_GHI
+        info: Fraunhofer reference cell (located at platform)
+        type: GHI
+        model: R
+        << : *PLATFORM
+        calibration: 3.0
+        zero_offset: 5.0
+
+    - # Reference cells at platform
+        id: Analog_GHI
+        info: Analog sensor Si-V-10TC (located at platform)
+        type: GHI
+        << : [*PLATFORM, *REFCELL]
+
+    - #
+        id: Analog_GTI
+        info: Analog sensor Si-V-10TC (located at platform)
+        type: GTI
+        << : *PLATFORM
+        << : *REFCELL
+        tilt: 25
+        azimuth: 17.3 S2E
+
+    - # Digital GTI sensor (East)
+        id: GTI_E
+        group: digi_E
+        info: GTI_E Digital sensor Si-RS485TC-T-Tm-MB (East)
+        type: GTI
+        # location: 896 + [1.05,1.2,0] # module ID + offset
+        location: [9.19660168, 48.69533885, 418.84]
+        azimuth: 25.4 S2E
+        tilt: 25.3
+        << : *REFCELL
+        members:
+        - # Module temperature sensor (East)
+            id: ExtTemp_E
+            type: Tm
+
+    - # Digital GTI sensor (Center)
+        id: GTI_C
+        group: digi_C
+        info: GTI_C Digital sensor Si-RS485TC-T-Tm-MB (Center)
+        type: GTI
+        # location: 1067 + [1.05,1.2,0]
+        location: [9.19508647, 48.69502641, 422.37]
+        azimuth: 16.7 S2E
+        tilt: 25.0
+        << : *REFCELL
+        members:
+        - # Module temperature sensor (Center)
+            id: ExtTemp_C
+            type: Tm
+
+    - # Digital GTI sensor (West)
+        id: GTI_W
+        group: digi_W
+        info: GTI_W Digital sensor Si-RS485TC-T-Tm-MB (West)
+        type: GTI
+        # location: 1727 + [-0.05,1.2,0]
+        location: [9.19266255, 48.69452652, 412.0]
+        azimuth: 4.9 S2E
+        tilt: 25.6
+        << : *REFCELL
+        members:   
+        - # Module temperature sensor (West)
+            id: ExtTemp_W
+            type: Tm
+        
+    - # Anemometer & wind vane
+        id: WS_ms
+        type: vw
+        location: [9.18915727, 48.69435333, 423.7]
+        members:
+        - { id: WindDir, type: windir }
+
+    - # Ambient temperature & humidity
+        id: amb_temp
+        type: Ta
+        << : *PLATFORM
+        members:
+        - { id: RH, type: RH }
+
+    - # DustIQ
+        group: DustIQ
+        info: DustIQ (located at platform)
+        model: DustIQ
+        # location: 1067 + [0,1.7,0]
+        location: [9.18915727, 48.69435333, 423.3]
+        azimuth: 16.7 S2E
+        tilt: 25.0
+        members:
+        - { id: DustIQ_1, type: soiling }
+        - { id: DustIQ_2, type: soiling }
+
+
+

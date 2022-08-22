@@ -11,3 +11,15 @@ config-*.ini
 tmp/*
 Remote/useraccounts.m
 **/SimOption.xml
+
+*.ssp
+*.log
+*.modint
+*.shdres
+*QCMD.mat
+
+tests/0a/*
+tests/1aC/*
+tests/2a/*
+tests/1aV/*
+tests/1aF/*
