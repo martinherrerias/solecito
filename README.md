@@ -30,6 +30,9 @@ Since 2019, the code has been reworked in the framework of the **HyForPV** proje
 
 [6] Herrerias A., M., Hammer, A., 2021. Probabilistic Estimation of Irradiance Components: A State Space Framework to Integrate Empirical Models, Forecasts, and Imperfect Sensor Measurements, ISES SWC 2021. Under review, [see preprint](https://www.researchgate.net/publication/356491420_Probabilistic_Estimation_of_Irradiance_Components_A_State_Space_Framework_to_Integrate_Empirical_Models_Forecasts_and_Imperfect_Sensor_Measurements).
 
+[7] Herrerias A., M., Zhou, H., Capdevila, H., Hammer A., Talab, M., Schneider, R. Solecito: A Software Library for the Detailed Simulation of
+Photovoltaic Arrays. 2022 PV Performance Modeling Workshop, Salt Lake City, Utah USA. https://pvpmc.sandia.gov/download/8439/
+
 ## Use
 
 #### 0. Try running the `startup.m` function from Matlab. It should add all the required folders to the path, and compile all libraries. If it worked, congratulations! jump to step 4... otherwise grab a coffee, and go to step 1.
