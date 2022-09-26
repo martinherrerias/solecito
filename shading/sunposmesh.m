@@ -65,6 +65,7 @@ function [Q,W] = sunposmesh(varargin)
     % Keep unique vectors only, idx works to return propper-sized W
     [P,~,idx] = unique(P,'rows');
     N = size(P,1);
+    P = double(P);
         
     if N < 3
     % Can't generate a mesh with less than 3 points
@@ -77,7 +78,7 @@ function [Q,W] = sunposmesh(varargin)
     % sense to simplify a mesh rather than just starting with a coarse spherical tessellation
     N0 = 4*pi/(opt.meshsize^2*0.4);
     N0 = 2 + 10*4^ceil(log2((N0 - 2)/10)/2);
-    if size(P,1) > N0
+    if size(P,1) > N0 || opt.meshsize < 3*pi/180
         Q = spherepoints(N0,'regular',true);
         if opt.plot, T = convhull(Q); end
     else    
@@ -112,6 +113,9 @@ function [Q,W] = sunposmesh(varargin)
     [W,e] = interpmatrix(P,Q,'-sph','maxarc',opt.meshsize,'tol',opt.meshsize/16);
     W = blkdiag(W,speye(nnz(e)));
     Q = [Q;P(e,:)];
+    used = any(W,1);
+    W = W(:,used);
+    Q = Q(used,:);
 
     if opt.reduce && size(Q,1) >= size(P,1)
     % More mesh vertices than original points: we'd be better off NOT interpolating
