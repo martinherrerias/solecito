@@ -6,6 +6,7 @@ function [n,P] = multisensor(varargin)
 % INPUT: 
 %   Za,Aa,Zb,Ab ... - a series of PAIRED zenith/azimuth angles (degrees) for any number of sensors.
 %       Each Zx,Ax can be either a scalar (that will be expanded to match its pair) or a vector.
+%       Azimuth 0 = North (x = 0, y = 1), 90 = East (x = 1, y = 0)
 %
 % OUTPUT:
 %   n - 3xm array of sensor normal vectors (pointing outwards).
@@ -25,7 +26,7 @@ function [n,P] = multisensor(varargin)
     end
     varargin = cellfun(@(x) reshape(x,1,[]),varargin,'unif',0);
     z = cat(2,varargin{1:2:end});
-    az = cat(2,varargin{2:2:end});
+    az = 90 - cat(2,varargin{2:2:end});
 
     [x,y,z] = sph2cart(az*pi/180,pi/2-z*pi/180,1);
     

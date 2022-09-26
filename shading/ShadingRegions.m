@@ -7,16 +7,16 @@ classdef ShadingRegions
 %   OBJ.albedo - static regions that define regions of visible ground (to be clipped below horizon)
 %   OBJ.solar - moving (i.e. sun-centered) circumsolar regions, in sun-centered coordinates*.
 %
-% Since each set of regions (sky/albedo) is meant to cover the respective half-dome, and to avoid
-% redundancy in calculations, there can be one 'implicit' region for each of these fields, which 
-% is simply defined as any area not included in the explicit spherical polygons. As an example,
-% the Perez 1990 geometrical framework could be defined as follows:
+% Since each set of regions (sky/albedo) are meant to cover the half- and full-dome (respectively),
+% and to avoid redundancy in calculations, there can be one 'implicit' region for each of these 
+% fields, which is simply defined as any area not included in the explicit spherical polygons. 
+% As an example, the Perez 1990 geometrical framework could be defined as follows:
 %
 %   OBJ.solar = {polygon3d(0:5:360,90 - 25,1,'sph')}; - 25° circumsolar circle 
-%   OBJ.sky = {polygon3d(0:360,10,1,'sph')}; - single explicit region (isotropic sky)
+%   OBJ.sky = {polygon3d(0:360,10,1,'sph')}; - single explicit region (isotropic sky, excluding HBB)
 %   OBJ.albedo = {}; - no explicit albedo
 %
-%   OBJ.implicit.sky - returns the missing, implicit sky region (10° horizon brightening band)
+%   OBJ.implicit.sky - returns the missing, implicit sky region (10° Horizon Brightening Band)
 %   OBJ.implicit.albedo - returns the complete ground below horizon
 %
 % Overall, there are four transient properties beside the three main explicit polygonal regions:
@@ -32,7 +32,6 @@ classdef ShadingRegions
 %   vertices are shared between at least two regions.
 %
 % See also: SHADINGREGIONS.SHADINGREGIONS, PROJECTSTATIC, PROJECTSOLAR, SHADINGREGIONS.PLOT
-
     
 properties (SetAccess = protected, GetAccess = public)
     info    % free structure field (usually with info.name = char key)
@@ -66,16 +65,21 @@ methods
     %
     % OBJ = SHADINGREGIONS(KEY) - use one of a series of predefined tesellations:
     %
-    %   'isotropic' - Isotropic sky and albedo, no circumsolar regions.
-    %   'haydavies' - CS* radius circumsolar region, isotropic sky and albedo.
-    %   'perez' - 90° - HBB* isotropic sky (implicit horizon-brightening) + 'haydavies'
+    %   'iso' - Isotropic sky and albedo, no circumsolar regions.
+    %   'haydavies' - equivalent to iso_CSXX for circumsolar region with radius XX.*
+    %   'perez' - HBB* horizon-brightening region + CS* circumsolar. Use perez_CSX_HBY to adjust.
     %   'perezN' - Each Perez region is divided into N cardinal directions. Unlike 'perez', it 
     %       also allows vector-valued HBB and/or CS radius (see below).
     %   'sunto' - 11 sky regions reflecting Sunto sensor geometry.
     %   'sunto2' - 21 sky regions reflecting Sunto sensor geometry.
     %   'bucky' - 71 quasi-uniform sky regions with icosahedral-dodecahedral symmetry.
     %   'eko' - 145 zones of the EKO MS-321LR Sky Scanner
-    %   'dumortier' - 13 zones of Dumortier (1995)
+    %   'satN' - for N in {5,9,13}, the equal-area zones used for the Satel-light project
+    %       (1995-97) [1]. satellight9/13 are equivalent to 'rings_1_8', and 'rings_1_4_8';
+    %       satellight5 is a 45° rotated 'rings_1_4'
+    %   'rings_A_B_C...' - generalization of 'satellightN'. Given a set of integers N = [A,B,C,..],
+    %       divides the dome into numel(N) rings, each split into N(j) regions. The width of the
+    %       rings is chosen so that all regions have equal area.
     %   'tinN' - for N = 40,160,640,2560,..(10·4^z with z > 0) Recursive division of the faces 
     %       of an icosahedral tessellation.
     %   'rbN' - Recursive Bisection N, starting with N approx. square elements on the horizon, and
@@ -86,6 +90,9 @@ methods
     %   'urN' - Quasi-Uniform Random N, using N voronoi cells centered at N points distributed
     %       evenly over the hemisphere (see SPHEREPOINTS).
     %       Albedo is split into N/2 wedge-shaped regions.
+    %
+    %   'KEY_cs_X_Y...hb_A_B...' - modified KEY, with circumsolar radii (X,Y,..) [and horizon-
+    %       brightening bands at angles (A,B,..)]
     %
     % OBJ = SHADINGREGIONS(S,A) - provide separate arguments for Sky and Albedo regions.
     %   Each argument can be a KEY (e.g. to combine features from two named models), or
@@ -106,6 +113,10 @@ methods
     % OBJ = SHADINGREGIONS(..,'angtol',TOL) - controls polygon resolution
     % OBJ = SHADINGREGIONS(..,'anisotropic',false) - ignore all arguments, return isotropic object.
     % OBJ = SHADINGREGIONS(..,'diffusemodel',key) - override the meaning of key: 'auto'
+    %
+    % [1] Pierre  Ineichen, 1997. Sky luminancedistribution fromMeteosat images (No. 3rd  Satellight  
+    % meeting). Satellight, Commision of the European Communities, Les  Marécottes.
+    % http://www.satellight.com/runlib/biblio/insky97.pdf
     %
     % See also: SHADINGREGIONS, SHADINGREGIONS.PLOT, MULTISENSOR
     
@@ -201,78 +212,107 @@ methods
         [~,obj.sky] = cellfun(@AzPrj.project,obj.sky,'unif',0);
         [~,obj.albedo] = cellfun(@AzPrj.project,obj.albedo,'unif',0);
                 
-        if isnan(opt.CS), opt.CS = []; end
+        if all(isnan(opt.CS) | opt.CS == 0,'all'), opt.CS = []; end
         obj.cs = sort(opt.CS(:))';
         assert(all(obj.cs > 32/60 & obj.cs < 90),'Invalid circumsolar-angles');
+        switch numel(obj.cs)
+        case 0
+        case 1
+            obj.info.name = sprintf('%s_cs%0.3g',obj.info.name,obj.cs);
+        otherwise
+            obj.info.name = strjoin([{obj.info.name},'cs' arrayfun(@num2str,obj.cs,'unif',0)],'_');
+        end
         
         obj = ShadingRegions.loadobj(obj);
         
 
-        function [obj,opt] = namedregions(arg,opt)
+        function [obj,opt] = namedregions(name,opt)
         % Return predefined tessellations from keyword ARG
             
             % Start with empty regions
-            obj.info.name = arg;
+            obj.info.name = name;
             obj.info.angtol = opt.angtol;
             obj.sky = {}; 
             obj.albedo = {};
             
-            % Split keys of the form 'XXNN' into key = 'XX', arg = NN
-            errmsg = ['Unknown key: ',arg];
-            key = regexp(lower(arg),'^(\D+)(\d*)$','tokens');
-            assert(~isempty(key),errmsg);
-            [key,N] = deal(key{1}{:});
-            if ~isempty(N), N = str2double(N); end
-            
-            da = @(z) 360/ceil(360/min(0.8*opt.angtol/sind(z),45));
-            cregions = @(zz) arrayfun(@(z) polygon3d(da(z)/2:da(z):360,90-z,1,'sph'),zz,'unif',0);
+            errmsg = ['Unknown key: ',name];
 
+            % Parse names with circumsolar regions *_CS_XX_YY...
+            [CS,arg] = regexp(lower(name),'cs([_.\d]*)','tokens','split');
+            if ~isempty(CS)
+                name = strip(cat(2,arg{:}),'_');
+                CS = strsplit(strip(CS{1}{1},'_'),'_');
+                opt.CS = cellfun(@str2double,CS);
+            end
+            
+            % Parse names with horizon-brightening regions *_HB_XX_YY...
+            [HB,arg] = regexp(lower(name),'_hb([_.\d]*)','tokens','split');
+            if ~isempty(HB)
+                name = strip(cat(2,arg{:}),'_');
+                HB = strsplit(strip(HB{1}{1},'_'),'_');
+                opt.HBB = cellfun(@str2double,HB);
+                assert(contains(name,'perez'),'HBB is only relevant for Perez-like models');
+            end
+            opt.CS = sort(opt.CS(:))';
+            opt.HBB = sort(opt.HBB(:))';
+            
+            arg = strsplit(name,'_'); 
+            if numel(arg) == 1
+            % Split keys of the form 'XXNN' into key = 'XX', arg = NN
+                key = regexp(lower(arg{1}),'^(.*?)(\d*)$','tokens');
+                assert(~isempty(key),errmsg);
+                [key,arg] = deal(key{1}{:});
+                if ~isempty(arg), arg = str2double(arg); end
+            else
+            % Split keys of the form 'XXNN' into key = 'XX', arg = NN
+                key = arg{1};
+                arg(1) = [];
+                m = cellfun(@str2double,arg);
+                if ~any(isnan(m)), arg = m; end
+            end
+                        
+            obj.info.name = key;
             switch key
             case {'iso','isotropic'}
-                assert(isempty(N),errmsg);
-                obj.info.name = 'isotropic';
+                obj.info.name = 'iso';
+                assert(isempty(arg),errmsg);
+                
             case 'haydavies'
-                assert(isempty(N),errmsg);
+                assert(isempty(arg),errmsg);
                 % obj.sky = {} i.e. implicit single static sky region (no horizon brightening)
                 % obj.albedo = {} i.e. implicit isotropic ground region
                 if isnan(opt.CS), opt.CS = opt.CSradius; end
-                obj.info.name = sprintf('Hay-Davies (%0.1f° CSR)',opt.CS);
                 obj.info.CS = opt.CS;
+                
             case 'perez'
                 % Get Perez's defaults from SimOptions
                 if isnan(opt.CS), opt.CS = opt.CSradius; end
                 if isnan(opt.HBB), opt.HBB = opt.HBBwidth; end
-                isnice = @(x) isscalar(x) && isfinite(x) && x > 0;
                 obj.info.CS = opt.CS;
                 obj.info.HBB = opt.HBB;
+                switch numel(opt.HBB)
+                case 0, error('perez requires HBB, use haydavies or isotropic');
+                case 1, obj.info.name = sprintf('perez_HB%0.3g',opt.HBB);
+                otherwise
+                    obj.info.name = strjoin([{'perez_hb'},arrayfun(@num2str,opt.HBB,'unif',0)],'_');
+                end
                 
-                if isempty(N)
-                    % Circumsolar region, typically 25°-half angle
-                    assert(isnice(opt.CS),'Perez model requires scalar CS radius >= 0');                        
-                    % Limit of isotropic sky: upper edge of the horizon brightening band 6.5°
-                    assert(isnice(opt.HBB),'Perez model requires scalar > 0 HBB width'); 
-                    obj.sky = cregions(90-opt.HBB);
-                    obj.info.name = sprintf('Perez et al. (%0.1f° CSR, %0.1f° HBB)',opt.CS,opt.HBB);
-                    
+                if isempty(arg) || arg == 1
+                    obj.sky = rings([0 cosd(opt.HBB) 1],1,opt.angtol*pi/180);                    
                     % obj.albedo = {} i.e. implicit isotropic ground region
                 else
                 % perezN: split isotropic, HB and albedo into N wedges
-                    [~,wedges] = multisensor(90,N/2:360/N:360);
+                    [~,wedges] = multisensor(90,arg/2:360/arg:360);
                     obj.albedo = wedges;
-                    obj.sky = {};
-                    for hbw = opt.HBB
-                        HB = [0;0;sind(hbw)];
-                        obj.sky = [obj.sky, cellfun(@(p) clipwithplane(p,[0;0;-1],HB),wedges,'unif',0)];
-                        wedges = cellfun(@(p) clipwithplane(p,[0;0;1],HB),wedges,'unif',0);
-                    end
-                    obj.sky = [obj.sky, wedges];
-                    obj.info.N = N;
-                    obj.info.name = sprintf('perez%d',N);
+                    obj.sky = rings([0 cosd(opt.HBB) 1],arg,opt.angtol*pi/180);
+                    obj.info.N = arg;
+                    obj.info.name = sprintf('perez%d',arg);
                 end
+                
             case {'eko','MS-321LR'}
             % 145 zones of MS-321LR Sky Scanner
             % https://media.eko-eu.com/assets/media/MS-321LR_Manual.pdf
-                obj.info.name = 'EKO MS-321LR Sky-Scanner';
+                obj.info.name = 'eko';
                 [~,obj.sky] = multisensor(...
                             90-6,90:-12:-270+12,...  % From azimuth 0° Ch1 to Ch30, clockwise 
                             90-18,90+12:12:450,...   % From azimuth -12° Ch31 to Ch60, counterclockwise
@@ -283,29 +323,57 @@ methods
                             90-78,90:-60:-270+60,... % From azimuth 0° Ch139 to Ch144, clockwise
                             0,0);                    % Zenith Ch145
                 
-            case {'satellight','satel-light','dumortier'}
-            % 13 zones of Dumortier (1995): http://www.satellight.com/indexgA.htm
-                obj.info.name = 'dumortier';
-                obj.sky = rings([0 5/13 sqrt(105)/13 1],[1 4 8],opt.angtol*pi/180);
-                obj.sky = obj.sky([1,2,5,4,3,7,6,13:-1:8]);     % reorder to match convention
-                [~,obj.albedo] = multisensor(90,67.5:-45:-270);
+            case {'sat','satellight','satel-light','dumortier','ineichen'}
+            % 5,9, or 13 zones of Dumortier (1995): http://www.satellight.com/indexgA.htm
+                
+                if isempty(arg), arg = 13; end
+                validateattributes(arg,'numeric',{'vector','integer','positive'});
+                switch arg
+                case 5
+                    obj = namedregions('rings_1_4',opt);
+                    obj.sky = cellfun(@(p) polyrotate(p,45,'Z'),obj.sky,'unif',0);
+                    obj.albedo = cellfun(@(p) polyrotate(p,45,'Z'),obj.albedo,'unif',0);
+                case 9, obj = namedregions('rings_1_8',opt);
+                case 13, obj = namedregions('rings_1_4_8',opt);
+                otherwise, error(errmsg);
+                end
+                obj.info.name = sprintf('sat%d',arg);
+                
+            case 'rings'
+                validateattributes(arg,'numeric',{'vector','integer','positive'});
+                m = numel(arg);
+                X = eye(m+1);
+                for j = 1:m-1
+                    X(j+1,j) = 1./arg(j);
+                    X(j+1,j+1) = -1./arg(j);
+                end
+                b = X\[1;repelem(1/sum(arg),m-1,1);0];
+                
+                obj.info.name = strjoin(arrayfun(@num2str,arg,'unif',0),'_');
+                obj.info.name = ['rings_' obj.info.name];
+                obj.sky = rings(sqrt(1-b.^2)',arg,opt.angtol*pi/180);
+                
+                m = arg(end);
+                [~,obj.albedo] = multisensor(90,(0.5:m)*360/m);
+                
             case 'sunto'
-                if isempty(N)
+                if isempty(arg)
                 % sunto: 11 sky regions reflecting Sunto sensor geometry, 5 albedo wedges
                     obj.info.name = 'sunto';
                     [~,obj.sky] = multisensor(0,0,45,(0:4)*360/5,90,(0.5:4.5)*360/5);
                     [~,obj.albedo] = multisensor(90,(0.5:4.5)*360/5);
-                elseif N == 2
+                elseif arg == 2
                 % sunto2: 21 sky regions (2 per sensor, except zenith), 10 albedo wedges
                     [~,obj.sky] = multisensor(0,0,45,(0:9)*360/10,90,(0:9)*360/10);
                     [~,obj.albedo] = multisensor(90,(0:9)*360/10);
-                    obj.info.N = N;
+                    obj.info.N = arg;
                     obj.info.name = 'sunto2';
                 else, error(errmsg);
                 end
+                
             case 'bucky'
             % 71 semi-regular sky regions, 6 dodecahedral albedo regions
-                assert(isempty(N),errmsg);
+                assert(isempty(arg),errmsg);
                 obj.info.name = 'bucky';
                 a = atand(2);
                 w = (0:4)*72;
@@ -321,21 +389,23 @@ methods
                 n12(:,n12(3,:) > sind(15)) = [];
                 [~,~,P] = voronoisphere(n12,'resolution',1.5);
                 obj.albedo = cellfun(@polygon3d,P','unif',0);
+                
             case 'tin'
             % Recursive division of the faces of an icosahedral tessellation, to achieve 40,
             % 160,640,2560,... triangular faces on the sky hemisphere.
             % Wedges (two triangles wide) are used for albedo
-
-                N = log(N/10)/log(4);
-                if mod(N,1) ~= 0
-                    N = max(1,round(N));
+            
+                arg = log(arg/10)/log(4);
+                if mod(arg,1) ~= 0
+                    arg = max(1,round(arg));
                     warning(['tinN works only for integers N = 10·4^z, for z > 0. Using ',...
-                     'the closest match tin%d. Use ur%d if not happy.'],10*4^N,N);
+                     'the closest match tin%d. Use ur%d if not happy.'],10*4^arg,arg);
                 end
-                obj.info.N = N;
-                obj.info.name = sprintf('tin%d',N);
+                obj.info.N = 10*4^arg;
+                obj.info.name = sprintf('tin%d',10*4^arg);
 
-                n = spherepoints(2 + 10*4^N,'regular',true);
+                n = spherepoints(2 + 10*4^arg,'regular',true);
+                n(abs(n(:,3)) < eps(8),3) = 0;
 
                 % Keep triangles on the upper hemisphere as sky-regions
                 T = convhull(n);
@@ -343,7 +413,7 @@ methods
                 obj.sky = arrayfun(@(j) polygon3d(n(T(j,:)',:)'),1:size(T,1),'unif',0)';
 
                 % Use a wedge-division with half the points on the horizon, for albedo
-                h = abs(n(:,3)) < eps(1);
+                h = n(:,3) == 0;
                 [~,idx] = sort(atan2(n(h,2),n(h,1)));
                 h = n(h,:);
                 h = h(idx(1:2:end),:);
@@ -358,15 +428,15 @@ methods
             %    If n(i) is not divisible by 2, stop.
             % 3. Create a voronoi tesellation from the centers of those elements.
 
-                assert(N > 4 && mod(N,4) == 0,'RBXX requires 4·z integer with z > 1');
-                obj.info.N = N;
-                obj.info.name = sprintf('rb%d',N);
+                assert(arg > 4 && mod(arg,4) == 0,'RBXX requires 4·z integer with z > 1');
+                obj.info.N = arg;
+                obj.info.name = sprintf('rb%d',arg);
 
-                [~,~,P] = voronoisphere(multisensor(90,(0:N/2-1)*360/(N/2)),'resolution',1.5);
+                [~,~,P] = voronoisphere(multisensor(90,(0:arg/2-1)*360/(arg/2)),'resolution',1.5);
                 obj.albedo = cellfun(@polygon3d,P','unif',0);
 
-                r = 90; z = zeros(3,0); c = []; d = 0; n = N;
-                for j = 1:ceil(log2(N/4))+1
+                r = 90; z = zeros(3,0); c = []; d = 0; n = arg;
+                for j = 1:ceil(log2(arg/4))+1
                     d = max(d,360*sind(r)/n);
                     if round(r/d) > 1 && mod(n,2) == 0
                         z = [z,multisensor(r-d/3,(0:n-1)*360/n)]; %#ok
@@ -383,10 +453,11 @@ methods
                 end
                 [~,~,P] = voronoisphere(z,'resolution',1.5);
                 obj.sky = cellfun(@polygon3d,P','unif',0);
+                
             case 'ur'
-                obj.info.N = N;
-                obj.info.name = sprintf('ur%d',N);
-                X = spherepoints(N,'symmetric',true);
+                obj.info.N = arg;
+                obj.info.name = sprintf('ur%d',arg);
+                X = spherepoints(arg,'symmetric',true);
                 [~,~,P] = voronoisphere(X,'resolution',1.5);
                 obj.sky = cellfun(@polygon3d,P','unif',0);
 
@@ -407,6 +478,10 @@ methods
         %   C = RINGS([0 5/13 sqrt(105)/13 1],[1 4 8],angtol*pi/180)
 
             narginchk(3,3);
+            if isscalar(N)
+                N = repelem(N,1,numel(R)-1);
+                R = sort(R);
+            end
             assert(numel(R) == numel(N)+1,'Expecting numel(N)+1 vector for R');
             assert(all(diff(R)>0),'Expecting strictly sorted vector R');
 
@@ -431,7 +506,10 @@ methods
                     r(end+1) = 0; %#ok<AGROW>
                 end
                 z = sqrt(1-r.^2);
-                x{j} = arrayfun(@(th0) polygon3d(th+th0,r,z,'pol'),(0:N(j)-1)/N(j)*360,'unif',0);
+                
+                % Order follows satellight convention, N2E around rings, zenith to horizon
+                x{j} = arrayfun(@(th0) polygon3d(90-(th+th0),r,z,'pol'),(0:N(j)-1)/N(j)*360,'unif',0);
+                % x{j} = arrayfun(@(th0) polygon3d(th+th0,r,z,'pol'),(0:N(j)-1)/N(j)*360,'unif',0);
             end
             x = [x{:}];
         end
@@ -652,12 +730,12 @@ methods
     %     OPT.rotation [eye(3)] - (starting) view point rotation matrix
     %     OPT.dynamic [false] - allow UI rotation with arrows after plotting
     %     OPT.horizon [random example horizon] 
-    %     OPT.sunpos [0,0] - [az,el] (degrees), or [3,1] sun-position vector 
+    %     OPT.sunpos [0,0] - [az,el] (degrees, az. N2E), or [3,1] sun-position vector
     %     OPT.colors.sky [blueish randomized colors], [OBJ.n.sky,3] colors for sky regions
     %     OPT.colors.gnd [greenish .. colors], [OBJ.n.albedo,3] colors for ground regions
     %     OPT.colors.sun [yellowish .. colors, 50% alpha], [OBJ.n.solar,4] colors for CS regions
     %     OPT.colors.edges ['none'] polygon edge colors
-    %     OPT.figh [GUIfigure('ShadingRegions')]
+    %     OPT.ax [GUIfigure('ShadingRegions')]
     %     OPT.labels [false] plot numeric labels for each visible region (slow)
     %     OPT.wires [false] plot 3D wire mesh
     %     OPT.prj [Lambert projection], POLYPROJECTOR object.
@@ -669,7 +747,7 @@ methods
         OPT.rotation = eye(3);
         OPT.dynamic = false;
         OPT.horizon = []; % samplehorizon();
-        OPT.sunpos = [0,0];
+        OPT.sunpos = [90,0];
         OPT.colors.sky = randomcolormap([0.5 0.7 1],obj.n.sky,0.2);
         OPT.colors.gnd = randomcolormap([0.6 0.8 0],obj.n.albedo,0.2);
         OPT.colors.sun = randomcolormap([1 1 0],obj.n.solar,0.2);
@@ -689,7 +767,7 @@ methods
         end
         
         if numel(OPT.sunpos) == 2
-            OPT.sunpos = sph2cartV(OPT.sunpos(1),OPT.sunpos(2))';
+            OPT.sunpos = sph2cartV(90 - OPT.sunpos(1),OPT.sunpos(2))';
         end
         
         if ~isa(OPT.prj,'polyprojector'), OPT.prj = polyprojector(OPT.prj); end
