@@ -609,7 +609,7 @@ methods
     end
 
     function varargout = plot(obj,varargin)
-        if ~isempty(varargin) && ishandle(varargin{end}) && isa(varargin{end},'matlab.graphics.axis.Axes')
+        if ~isempty(varargin) && isa(varargin{end},'matlab.graphics.axis.Axes') && ishandle(varargin{end})
             ax = varargin{end};
             varargin(end) = [];
         else, ax = gca();

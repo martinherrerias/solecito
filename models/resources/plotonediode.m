@@ -13,7 +13,7 @@ function varargout = plotonediode(pars,varargin)
 % h = PLOTONEDIODE(..,AX) - plot on axis AX
 
     [opt,varargin] = getpairedoptions(varargin,{'Lim','Tol','Ge','Tc'},{[],1e-3,[],[]});
-    if ~isempty(varargin) && ishandle(varargin{end}) && isa(varargin{end},'matlab.graphics.axis.Axes')
+    if ~isempty(varargin) && isa(varargin{end},'matlab.graphics.axis.Axes') && ishandle(varargin{end})
         ax = varargin{end}; 
         varargin(end) = [];
     else, ax = gca();

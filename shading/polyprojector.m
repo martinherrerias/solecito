@@ -141,7 +141,7 @@ methods
     
         if nargin == 0, prjfun = 'iam'; end
         
-        DEF = struct('clip','auto','normalize',true,'south',false,'prjfun',prjfun,...
+        DEF = struct('clip','auto','normalize','auto','south',false,'prjfun',prjfun,...
           'angtol',getSimOption('angtol'),'tol',getSimOption('RelTol'),'fiam',getSimOption('IAM'));
       
         opt = getpairedoptions(varargin,DEF,'restchk');
@@ -174,9 +174,11 @@ methods
         tol_critical = min(obj.tol,1e-6);
     
         % Defaults
-        if isempty(obj.normalize) || isequal(obj.normalize,'auto'), obj.normalize = true; end
         if isempty(obj.prjfun), obj.prjfun = 'iam'; end
-        
+        if isempty(obj.normalize) || isequal(obj.normalize,'auto')
+            obj.normalize = ischar(obj.prjfun) && ~contains(obj.prjfun,'IAM','ignorecase',true);
+        end
+
         newfunction = changed({'prjfun','tol'}) || isequal(obj.prjfun,'IAM') && changed('fiam');
 
         if newfunction
@@ -395,7 +397,7 @@ methods
             otherwise, error('Expecting 2D/3D single point as POINT')
         end
             
-        tricky = isnan(rp) || obj.r0*obj.fun(obj.cX) - rp <= obj.tol;
+        tricky = isnan(rp) || obj.r0*obj.fun(obj.cX) - rp <= 8*obj.tol;
         if tricky
         % Provisionally use a well-behaved function outside cX
            fcn = obj.fun;
@@ -819,42 +821,57 @@ methods (Static,Hidden = true)
     function test(types,varargin)
     % TEST(KEYS,...) - Compare/test projectors OBJ(k,...) for k in KEYS{:} with random polygons.
                 
-        if nargin == 0, types = {'Orthographic','Lambert','IAM'}; end
+        if nargin == 0 || isempty(types), types = {'Lambert','Orthographic','IAM'}; end
         if ischar(types), types = {types}; end
         assert(iscellstr(types),'Cell string of TYPES required');
+        
+        [opt,varargin] = getpairedoptions(varargin,{'fIAM'},{checkIAM('martinruiz','maxloss',0.1)});
+        varargin(end+1:end+2) = {'fIAM',opt.fIAM};
  
-        % Built projectors
+        % Build projectors
         obj = cellfun(@(t) polyprojector(t,varargin{:}),types);
                 
         noprj =  polyprojector('azim','clip',false); % used for no-clipping polygon refinement
         
         warning_reseter = naptime({'mergepolygons:arrayholes','flatten:zz'});  %#ok<NASGU>
         
-        figh = gcf(); clf(); hold on;
-     
-        % Draw abs axis and spherical grid
-        plot3([-1.3,1.3,NaN,0,0,NaN,0,0],[0,0,NaN,-1.3,1.3,NaN,0,0],[0,0,NaN,0,0,NaN,0,1.3],'k-');
-        text(1.4,0,0,'X'); text(0,1.4,0,'Y'); text(0,0,1.4,'Z');
-        arrayfun(@(th) polyplot(polygon3d(th,0:5:360,1,'sph'),'none',[1 1 1]*0.8),0:30:150);
-        arrayfun(@(th) polyplot(polygon3d(0:5:360,th,1,'sph'),'none',[1 1 1]*0.8),-60:30:60);
-        axis([-1 1 -1 1 -1 1]*1.5); axis square; axis equal;
-        view(120,30);
+        figh = GUIfigure('polyprojector.test'); clf(); hold on; set(gca,'visible','off');
+        plothalfdome('-full'); 
         
-        colors = hsv(2*numel(types));
-        colors = colors(randi(2*numel(types),numel(types),1),:);
+        colors = flipud(colorcitos(numel(types)));
         colors(:,4) = 0.2;
-                
+        TINY = 0.001;
+        
         fh = {};
+        k = 0;
         while ishandle(figh)
+            k = k+1;
+            if k <= 4
+            % Some representative, predictable cases first
+                F = polygon(4);
+                
+                switch k
+                    case 1, t = 1.3; R = polygon3d.rotmat([45,30,30],'ZYZ');
+                    case 2, t = 1.3; R = polygon3d.rotmat([45,80,30],'ZYZ');
+                    case 3
+                        t = 0.2; R = polygon3d.rotmat([45,120,30],'ZYZ');
+                        F.x = F.x*0.6; F.y = F.y*0.6;
+                    case 4
+                        t = 0.01; R = polygon3d.rotmat([45,120,30],'ZYZ');
+                        F.x = F.x*0.6; F.y = F.y*0.6; 
+                end
+                t = R*[0,0,t]';
+            else
+            % Random test polygon
+                n = randi(5)+3;
+                F = polygon(sort(rand(n,1)*360),(rand(n,1)+1),'pol');
 
-            % Create test polygon
-            F = polygon(sort(rand(8,1)*360),rand(8,1),'pol');
-            
-            % F = arrayfun(@(j) polygon(sort(rand(5,1)*360),rand(5,1),'pol',rand()>0.5),1:2);
-            % F = mergepolygons(F);
+                % F = arrayfun(@(j) polygon(sort(rand(5,1)*360),rand(5,1),'pol',rand()>0.5),1:2);
+                % F = mergepolygons(F);
 
-            R = polygon3d.rotmat([rand()*180,rand()*180,rand()*180],'ZXY');
-            t = rand(3,1)*2-1;
+                R = polygon3d.rotmat([rand()*180,rand()*180,rand()*180],'ZXY');
+                t = rand(3,1)*2-1;
+            end
             P = polyrotate(polygon3d(F),R);
             P = polytranslate(P,t);
             
@@ -871,18 +888,26 @@ methods (Static,Hidden = true)
             % Delete previous projections
             cellfun(@delete,fh);
             
-            fh{1} = polyplot(P,[0 0 1 0.2],'b');
-            fh{2} = polyplot(S,'none','r');
+            fh{1} = polyplot(P,[0 0 1 0.2],'b','DisplayName','Euclidean');
+            fh{2} = polyplot(S,'none','r','DisplayName','Spherical');
             
             XY = polygon(0:5:360,1,'pol');
             for j = 1:numel(types)
                 Q = obj(j).project(P,[0;0;1],zin);
                 XY = substractpolygons(XY,Q);
-                fh{j+3} = polyplot(Q,colors(j,:),colors(j,1:3));
+                fh{j+3} = polyplot(Q,colors(j,:),colors(j,1:3),'DisplayName',types{j});
+                for h = 1:numel(fh{j+3})
+                    fh{j+3}(h).Vertices(:,3) = TINY*j;
+                end
+                % arrayfun(@(h) set(h,'Vertices',ones(size(h.XData))*TINY*j),fh{j+3},'unif',0);
             end
-            fh{3} = polyplot(XY,[1 1 1 0.2]*0.8,'none');
+            % fh{3} = polyplot(XY,[1 1 1 0.2]*0.8,'none','handlevis);
 
+            legend('box','off');
             pause()
+            
+            % printfig = @(name) cellfun(@(fmt) print(gcf,['-d' fmt],'-r300',[name '.' fmt]),{'svg','png'});
+            % keyboard()
         end
     end
 end

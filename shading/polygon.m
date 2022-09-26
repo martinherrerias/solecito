@@ -779,7 +779,7 @@ classdef polygon
 				if nargout > 0, varargout{1} = []; end
 				return; 
             end
-            if ~isempty(varargin) && ishandle(varargin{end}) && isa(varargin{end},'matlab.graphics.axis.Axes')
+            if ~isempty(varargin) &&  isa(varargin{end},'matlab.graphics.axis.Axes') && ishandle(varargin{end})
                 ax = varargin{end};
                 varargin(end) = [];
             else
