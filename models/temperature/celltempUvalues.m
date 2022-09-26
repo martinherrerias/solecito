@@ -26,11 +26,12 @@ function Tc = celltempUvalues(Ge,Ta,vw,Mod,eff,Tol)
     if nargin < 3 || isempty(vw), vw = zeros(size(Ge)); end
     
     % If wind speed is a scalar, replicate for all Ee,Ta combinations
-    if isscalar(vw)&&numel(Ge)>1,vw = ones(size(Ge))*vw; end
+%     if isscalar(vw)&&numel(Ge)>1,vw = ones(size(Ge))*vw; end
 
-    if numel(Ge) ~= numel(Ta) || numel(Ge) ~= numel(vw)
-        error('celltempUvalues:arrsize','Ee, Ta, and/or vw have different sizes!');
-    end
+    compatiblesize(Ge,Ta,vw);
+%     if numel(Ge) ~= numel(Ta) || numel(Ge) ~= numel(vw)
+%         error('celltempUvalues:arrsize','Ee, Ta, and/or vw have different sizes!');
+%     end
 
     if isstruct(Mod)
         assert(isfield(Mod,'Uconst'),'celltempUvalues:missingUconst','Missing field ''Uconst'' in parameters');

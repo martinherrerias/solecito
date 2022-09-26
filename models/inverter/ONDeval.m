@@ -32,10 +32,26 @@ function [Pout,Loss] = ONDeval(Inv,Pin,Vin,Ta)
     DEF.Pnt = 0;
     DEF.Paux = 0;
     DEF.TPLim = @(Ta)repmat(Inv.Pdc0,size(Ta));
-    
+    DEF.MPPTLow = 0;
+    DEF.MPPTHi = Inf;
+    DEF.IdcMax = Inf;
+
     Inv = completestruct(Inv,DEF);
     parsestruct(Inv,{'MPPTLow','MPPTHi','IdcMax','Ps0','Pdc0','Pnt','Paux'},'-n','-r','-p','-s');
+    
+    if isfield(Inv,'EffMax')
+        validateattributes(Inv.EffMax,'numeric',{'scalar','real','finite','positive','<',1});
+        if ~isfield(Inv,'fPV')
+            Inv.fPV = @(Pdc,Vdc) max(0,Pdc - Inv.Ps0)*Inv.EffMax;
+        end
+    end
+
     parsestruct(Inv,{'TPLim','fPV'},'class',{'function_handle','griddedInterpolant'});
+    
+    if nargin < 3 || isempty(Vin) || all(isnan(Vin),'all')
+       Vin =  0.5*(Inv.MPPTLow + Inv.MPPTHi);
+       warning('Assuming Vdc = %0.1f',Vin);
+    end
 
     [Pin,Vin,Ta] = compatiblesize(Pin,Vin,Ta);
     s = size(Pin);
