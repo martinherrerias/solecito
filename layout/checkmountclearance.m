@@ -43,8 +43,10 @@ function varargout = checkmountclearance(Trackers,minclearance)
         % Check vertices vs interpolated ground height
         [ID,B] = Gnd.pointLocation(V(:,1:2));
         z = dot(Z(Gnd(ID,:)),B,2);
-        dz = V(:,3) - z;
+        dz = (V(:,3) - z)';
         clearance = min([clearance,dz(F)],[],2);
+        
+        if Ntr == 1, continue; end
 
         ppjh = polygon3d.vf2poly(V(:,1:2),F); % Project on XY plane
         ppjh = fixorientation(ppjh); 

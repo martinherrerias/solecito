@@ -150,7 +150,7 @@ end
 
 function [V,T] = boundedsurfacetriangulation(V,buffer,SHRINK_FACTOR)
 
-    if rank(V) < 2
+    if rank(V) < 2 || size(V,1) < 3
         p = polygon.outline(V(:,1),V(:,2),buffer,6);
     else
         k = boundary(V(:,1),V(:,2),SHRINK_FACTOR);

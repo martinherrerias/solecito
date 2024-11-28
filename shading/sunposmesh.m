@@ -104,41 +104,43 @@ function [Q,W] = sunposmesh(varargin)
                  ismember(T(:,[1,3]),E(toolong,:),'rows');
         T(toobig,:) = [];
 
-        warning_resetter = naptime('MATLAB:triangulation:PtsNotInTriWarnId'); %#ok<NASGU>
+        if ~isempty(T)
+            warning_resetter = naptime('MATLAB:triangulation:PtsNotInTriWarnId'); %#ok<NASGU>
 
-        [Q,T] = cleantrisurf(P,T,MIN*opt.meshsize,opt.meshsize,...
-            'geom_feat',false,'optm_tria',false,'optm_div_',false,'mesh_rad2',10,'geom_seed',0);
-     end
+            [Q,T] = cleantrisurf(P,T,MIN*opt.meshsize,opt.meshsize,...
+                'geom_feat',false,'optm_tria',false,'optm_div_',false,'mesh_rad2',10,'geom_seed',0);
+        else
+            Q = [];
+        end
+    end
 
-    [W,e] = interpmatrix(P,Q,'-sph','maxarc',opt.meshsize,'tol',opt.meshsize/16);
-    W = blkdiag(W,speye(nnz(e)));
-    Q = [Q;P(e,:)];
-    used = any(W,1);
-    W = W(:,used);
-    Q = Q(used,:);
+    if ~isempty(Q)
+        % Remove vertices that won't be used for interpolation
+        [W,e] = interpmatrix(P,Q,'-sph','maxarc',opt.meshsize,'tol',opt.meshsize/16);
+        W = blkdiag(W,speye(nnz(e)));
+        Q = [Q;P(e,:)];
+        used = any(W,1);
+        W = W(:,used);
+        Q = Q(used,:);
+    else
+        Q = P;
+    end
 
     if opt.reduce && size(Q,1) >= size(P,1)
     % More mesh vertices than original points: we'd be better off NOT interpolating
         Q = P; 
-        W = speye(N); W = W(idx,:);
+        W = speye(N); 
+        W = W(idx,:);
         return; 
     end
-        
-    if opt.reduce
-    % Remove vertices that won't be used for interpolation
-        used = any(W,1);
-        Q = Q(used,:);
-        W = W(:,used);
-
-        if opt.plot
-            used = full(sparse(find(used),1,1:nnz(used),numel(used),1));
-            T = used(T);
-            T(any(T==0,2),:) = [];
-        end
-    end
+    
     W = W(idx,:); 
 
-    if opt.plot        
+    if opt.plot
+        used = full(sparse(find(used),1,1:nnz(used),numel(used),1));
+        T = used(T);
+        T(any(T==0,2),:) = [];
+            
         GUIfigure('sunposmesh'); clf(); hold on
         plothalfdome();
         trisurf(triangulation(T,Q),'facealpha',0.3,'edgecolor','b');
@@ -148,9 +150,9 @@ function [Q,W] = sunposmesh(varargin)
 end
 
 function test()
-    rng(1);
+    % rng(1);
     N = 1000;
-    M = 10; 
+    M = 3; 
     X = rand(N*M,3)*2-1 + (repmat(rand(M,3),N,1)*2-1)*5;
     X(:,3) = abs(X(:,3));
     X = X./rssq(X,2);
