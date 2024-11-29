@@ -1,12 +1,12 @@
 [submodule "matlab-pvmeteo"]
 	path = matlab-pvmeteo
-	url = git@github.com:martinherrerias/matlab-pvmeteo
+	url = ../matlab-pvmeteo.git
 [submodule "external/yaml"]
 	path = external/yaml
 	url = https://gitlab.hhi.fraunhofer.de/daube/yamlmatlab.git
 [submodule "external/clipper"]
 	path = external/clipper
-	url = git@github.com:martinherrerias/matlab-polygon-clipper.git
+	url = ../matlab-polygon-clipper.git
 [submodule "external/jigsaw-matlab"]
 	path = external/jigsaw/jigsaw-matlab
 	url = https://github.com/dengwirda/jigsaw-matlab.git
